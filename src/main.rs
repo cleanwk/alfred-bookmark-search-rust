@@ -302,6 +302,15 @@ fn parse_query_and_folder_filters(raw_query: &str) -> (String, Vec<String>) {
     let mut folder_filters: Vec<String> = Vec::new();
 
     for token in raw_query.split_whitespace() {
+        if let Some(value) = token.strip_prefix('#') {
+            if value.is_empty() {
+                continue;
+            }
+            let values = normalize_csv_terms(value.split(','));
+            append_unique_case_insensitive(&mut folder_filters, values);
+            continue;
+        }
+
         if let Some(value) = token
             .strip_prefix("dir:")
             .or_else(|| token.strip_prefix("folder:"))
@@ -309,14 +318,7 @@ fn parse_query_and_folder_filters(raw_query: &str) -> (String, Vec<String>) {
             .or_else(|| token.strip_prefix("in:"))
         {
             let values = normalize_csv_terms(value.split(','));
-            for folder in values {
-                if !folder_filters
-                    .iter()
-                    .any(|existing| existing.eq_ignore_ascii_case(&folder))
-                {
-                    folder_filters.push(folder);
-                }
-            }
+            append_unique_case_insensitive(&mut folder_filters, values);
             continue;
         }
 
@@ -324,6 +326,17 @@ fn parse_query_and_folder_filters(raw_query: &str) -> (String, Vec<String>) {
     }
 
     (query_tokens.join(" "), folder_filters)
+}
+
+fn append_unique_case_insensitive(target: &mut Vec<String>, values: Vec<String>) {
+    for value in values {
+        if !target
+            .iter()
+            .any(|existing| existing.eq_ignore_ascii_case(&value))
+        {
+            target.push(value);
+        }
+    }
 }
 
 fn build_subtitle(folder_path: &Option<String>, domain: &str) -> String {
@@ -399,5 +412,34 @@ mod tests {
     fn normalize_csv_terms_dedupes_and_trims() {
         let terms = normalize_csv_terms(vec![" work ", "work", "project", " "]);
         assert_eq!(terms, vec!["work".to_string(), "project".to_string()]);
+    }
+
+    #[test]
+    fn parse_query_extracts_hash_folder_filters() {
+        let (query, folders) = parse_query_and_folder_filters("#work #project rust");
+        assert_eq!(query, "rust");
+        assert_eq!(folders, vec!["work".to_string(), "project".to_string()]);
+    }
+
+    #[test]
+    fn parse_query_supports_mixed_hash_and_plain_keywords() {
+        let (query, folders) = parse_query_and_folder_filters("tokio #backend #docs async");
+        assert_eq!(query, "tokio async");
+        assert_eq!(folders, vec!["backend".to_string(), "docs".to_string()]);
+    }
+
+    #[test]
+    fn parse_query_merges_hash_and_inline_folder_filters() {
+        let (query, folders) =
+            parse_query_and_folder_filters("rust #work dir:project folder:docs #WORK");
+        assert_eq!(query, "rust");
+        assert_eq!(
+            folders,
+            vec![
+                "work".to_string(),
+                "project".to_string(),
+                "docs".to_string()
+            ]
+        );
     }
 }

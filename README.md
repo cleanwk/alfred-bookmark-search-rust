@@ -46,6 +46,15 @@ alfred-chrome-bookmarks search "rust folder:work/project"
 alfred-chrome-bookmarks search "in:research/ai transformer"
 ```
 
+### 4. `#` 目录关键字（新增）
+
+`#` 开头的词会被当作目录过滤词，支持多个组合，并可与普通关键词混合：
+
+```bash
+alfred-chrome-bookmarks search "#work #project rust"
+alfred-chrome-bookmarks search "tokio #backend #docs async"
+```
+
 ## 命令
 
 ```bash
