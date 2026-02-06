@@ -1,84 +1,48 @@
 use crate::bookmark::ChromeBookmark;
-use crate::tag_manager::TagManager;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-/// 搜索结果
 #[derive(Debug)]
 pub struct SearchResult {
     pub bookmark: ChromeBookmark,
 }
 
-/// 搜索器
 pub struct BookmarkSearcher {
     fuzzy_matcher: SkimMatcherV2,
 }
 
 impl BookmarkSearcher {
     pub fn new() -> Self {
-        BookmarkSearcher {
+        Self {
             fuzzy_matcher: SkimMatcherV2::default(),
         }
     }
 
-    /// 搜索书签（优化版：使用预计算lowercase，Top-K选择，提前终止）
     pub fn search(
         &self,
         bookmarks: &[ChromeBookmark],
-        tag_manager: &TagManager,
         query: &str,
-        search_tags: &[String],
         folder_filters: &[String],
         fuzzy: bool,
         limit: usize,
-    ) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
+    ) -> Vec<SearchResult> {
         if limit == 0 {
-            return Ok(Vec::new());
+            return Vec::new();
         }
 
-        // 先按tags过滤
-        let tag_filtered_ids = if !search_tags.is_empty() {
-            let ids = tag_manager.find_bookmarks_by_tags(search_tags)?;
-            if ids.is_empty() {
-                return Ok(Vec::new());
-            }
-            Some(ids.into_iter().collect::<std::collections::HashSet<_>>())
-        } else {
-            None
-        };
-
-        let normalized_folder_filters: Vec<Vec<String>> = folder_filters
-            .iter()
-            .filter_map(|raw| normalize_folder_filter(raw))
-            .collect();
-
+        let normalized_folder_filters = normalize_folder_filters(folder_filters);
         let query_lower = query.to_lowercase();
-        let mut results = Vec::new();
 
         if query.is_empty() {
-            for bookmark in bookmarks {
-                if let Some(ref id_set) = tag_filtered_ids {
-                    if !id_set.contains(&bookmark.id) {
-                        continue;
-                    }
-                }
-
-                if !matches_folder_filters(bookmark, &normalized_folder_filters) {
-                    continue;
-                }
-
-                results.push(SearchResult {
-                    bookmark: bookmark.clone(),
-                });
-
-                if results.len() >= limit {
-                    break;
-                }
-            }
-
-            return Ok(results);
+            return bookmarks
+                .iter()
+                .filter(|bookmark| matches_folder_filters(bookmark, &normalized_folder_filters))
+                .take(limit)
+                .cloned()
+                .map(|bookmark| SearchResult { bookmark })
+                .collect();
         }
 
         #[derive(Debug)]
@@ -100,7 +64,7 @@ impl BookmarkSearcher {
             fn cmp(&self, other: &Self) -> Ordering {
                 match self.score.cmp(&other.score) {
                     Ordering::Equal => other.idx.cmp(&self.idx),
-                    other => other,
+                    order => order,
                 }
             }
         }
@@ -114,13 +78,6 @@ impl BookmarkSearcher {
         let mut heap: BinaryHeap<std::cmp::Reverse<HeapItem>> = BinaryHeap::new();
 
         for (idx, bookmark) in bookmarks.iter().enumerate() {
-            // tag过滤
-            if let Some(ref id_set) = tag_filtered_ids {
-                if !id_set.contains(&bookmark.id) {
-                    continue;
-                }
-            }
-
             if !matches_folder_filters(bookmark, &normalized_folder_filters) {
                 continue;
             }
@@ -159,16 +116,14 @@ impl BookmarkSearcher {
         let mut items: Vec<HeapItem> = heap.into_iter().map(|item| item.0).collect();
         items.sort_unstable_by(|a, b| b.score.cmp(&a.score).then_with(|| a.idx.cmp(&b.idx)));
 
-        for item in items {
-            results.push(SearchResult {
+        items
+            .into_iter()
+            .map(|item| SearchResult {
                 bookmark: item.bookmark,
-            });
-        }
-
-        Ok(results)
+            })
+            .collect()
     }
 
-    /// 模糊搜索
     fn fuzzy_search(&self, bookmark: &ChromeBookmark, query: &str) -> i64 {
         let mut max_score = 0i64;
 
@@ -189,17 +144,14 @@ impl BookmarkSearcher {
         max_score
     }
 
-    /// 精确搜索（使用预计算的lowercase字段）
     fn exact_search(&self, bookmark: &ChromeBookmark, query_lower: &str) -> i64 {
         let mut score = 0i64;
 
         if bookmark.name_lower.contains(query_lower) {
             score += 200;
-            // 额外加分：完全匹配标题
             if bookmark.name_lower == query_lower {
                 score += 100;
             }
-            // 额外加分：以查询开头
             if bookmark.name_lower.starts_with(query_lower) {
                 score += 50;
             }
@@ -217,29 +169,6 @@ impl BookmarkSearcher {
 
         score
     }
-
-    /// 获取所有tags的建议
-    pub fn get_tag_suggestions(
-        &self,
-        tag_manager: &TagManager,
-        prefix: &str,
-    ) -> Result<Vec<(String, usize)>, Box<dyn std::error::Error>> {
-        let all_tags = tag_manager.get_all_tags()?;
-
-        let prefix_lower = prefix.to_lowercase();
-        let mut suggestions: Vec<(String, usize)> = if prefix_lower.is_empty() {
-            all_tags.into_iter().collect()
-        } else {
-            all_tags
-                .into_iter()
-                .filter(|(tag, _)| tag.to_lowercase().contains(&prefix_lower))
-                .collect()
-        };
-
-        suggestions.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-
-        Ok(suggestions)
-    }
 }
 
 impl Default for BookmarkSearcher {
@@ -248,7 +177,14 @@ impl Default for BookmarkSearcher {
     }
 }
 
-fn normalize_folder_filter(raw: &str) -> Option<Vec<String>> {
+pub fn normalize_folder_filters(raw_filters: &[String]) -> Vec<Vec<String>> {
+    raw_filters
+        .iter()
+        .filter_map(|raw| normalize_folder_filter(raw))
+        .collect()
+}
+
+pub fn normalize_folder_filter(raw: &str) -> Option<Vec<String>> {
     let cleaned = raw
         .trim()
         .to_lowercase()
@@ -260,7 +196,7 @@ fn normalize_folder_filter(raw: &str) -> Option<Vec<String>> {
         .split('/')
         .map(str::trim)
         .filter(|segment| !segment.is_empty())
-        .map(|segment| segment.to_string())
+        .map(ToString::to_string)
         .collect();
 
     if segments.is_empty() {
@@ -270,7 +206,7 @@ fn normalize_folder_filter(raw: &str) -> Option<Vec<String>> {
     }
 }
 
-fn matches_folder_filters(bookmark: &ChromeBookmark, folder_filters: &[Vec<String>]) -> bool {
+pub fn matches_folder_filters(bookmark: &ChromeBookmark, folder_filters: &[Vec<String>]) -> bool {
     if folder_filters.is_empty() {
         return true;
     }
@@ -278,6 +214,7 @@ fn matches_folder_filters(bookmark: &ChromeBookmark, folder_filters: &[Vec<Strin
     let Some(folder_lower) = bookmark.folder_path_lower.as_deref() else {
         return false;
     };
+
     let folder_segments: Vec<&str> = folder_lower
         .split('/')
         .map(str::trim)
@@ -287,6 +224,22 @@ fn matches_folder_filters(bookmark: &ChromeBookmark, folder_filters: &[Vec<Strin
     folder_filters
         .iter()
         .all(|filter| folder_matches_hierarchy(&folder_segments, filter))
+}
+
+pub fn folder_filter_to_like_pattern(raw_filter: &str) -> Option<String> {
+    let segments = normalize_folder_filter(raw_filter)?;
+
+    if segments.len() == 1 {
+        return Some(format!("%{}%", escape_like_value(&segments[0])));
+    }
+
+    let joined = segments
+        .iter()
+        .map(|segment| format!("%{}%", escape_like_value(segment)))
+        .collect::<Vec<_>>()
+        .join("/");
+
+    Some(format!("%{}%", joined))
 }
 
 fn folder_matches_hierarchy(folder_segments: &[&str], filter_segments: &[String]) -> bool {
@@ -316,14 +269,20 @@ fn folder_matches_hierarchy(folder_segments: &[&str], filter_segments: &[String]
             return false;
         }
     }
+
     true
+}
+
+fn escape_like_value(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tag_manager::TagManager;
-    use tempfile::tempdir;
 
     fn bookmark(id: &str, name: &str, url: &str, folder: Option<&str>) -> ChromeBookmark {
         ChromeBookmark {
@@ -331,22 +290,15 @@ mod tests {
             name: name.to_string(),
             url: url.to_string(),
             date_added: "0".to_string(),
-            folder_path: folder.map(|p| p.to_string()),
+            folder_path: folder.map(ToString::to_string),
             name_lower: name.to_lowercase(),
             url_lower: url.to_lowercase(),
             folder_path_lower: folder.map(|p| p.to_lowercase()),
         }
     }
 
-    fn tag_manager() -> (TagManager, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
-        let db_path = dir.path().join("tags.db");
-        (TagManager::new(db_path).expect("manager"), dir)
-    }
-
     #[test]
     fn exact_search_ranks_full_match_first() {
-        let (manager, _dir) = tag_manager();
         let searcher = BookmarkSearcher::new();
         let bookmarks = vec![
             bookmark("1", "rust", "https://rust-lang.org", None),
@@ -354,47 +306,12 @@ mod tests {
             bookmark("3", "other", "https://other.com", None),
         ];
 
-        let results = searcher
-            .search(&bookmarks, &manager, "rust", &[], &[], false, 10)
-            .expect("search");
-        assert_eq!(results.first().unwrap().bookmark.id, "1");
-    }
-
-    #[test]
-    fn search_filters_by_tags_and_limits() {
-        let (manager, _dir) = tag_manager();
-        manager
-            .add_tags("1", &vec!["work".into()])
-            .expect("add tags");
-        manager
-            .add_tags("2", &vec!["personal".into()])
-            .expect("add tags");
-
-        let searcher = BookmarkSearcher::new();
-        let bookmarks = vec![
-            bookmark("1", "alpha", "https://a.com", None),
-            bookmark("2", "beta", "https://b.com", None),
-            bookmark("3", "gamma", "https://c.com", None),
-        ];
-
-        let results = searcher
-            .search(
-                &bookmarks,
-                &manager,
-                "",
-                &vec!["work".into()],
-                &[],
-                false,
-                1,
-            )
-            .expect("search");
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].bookmark.id, "1");
+        let results = searcher.search(&bookmarks, "rust", &[], false, 10);
+        assert_eq!(results.first().expect("first").bookmark.id, "1");
     }
 
     #[test]
     fn empty_query_returns_first_n_in_order() {
-        let (manager, _dir) = tag_manager();
         let searcher = BookmarkSearcher::new();
         let bookmarks = vec![
             bookmark("1", "one", "https://1.com", None),
@@ -402,9 +319,7 @@ mod tests {
             bookmark("3", "three", "https://3.com", None),
         ];
 
-        let results = searcher
-            .search(&bookmarks, &manager, "", &[], &[], false, 2)
-            .expect("search");
+        let results = searcher.search(&bookmarks, "", &[], false, 2);
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].bookmark.id, "1");
         assert_eq!(results[1].bookmark.id, "2");
@@ -412,7 +327,6 @@ mod tests {
 
     #[test]
     fn folder_filter_supports_hierarchy_matching() {
-        let (manager, _dir) = tag_manager();
         let searcher = BookmarkSearcher::new();
         let bookmarks = vec![
             bookmark(
@@ -424,24 +338,13 @@ mod tests {
             bookmark("2", "music", "https://music.example", Some("书签栏/Play")),
         ];
 
-        let results = searcher
-            .search(
-                &bookmarks,
-                &manager,
-                "",
-                &[],
-                &vec!["work/project".into()],
-                false,
-                10,
-            )
-            .expect("search");
+        let results = searcher.search(&bookmarks, "", &vec!["work/project".into()], false, 10);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].bookmark.id, "1");
     }
 
     #[test]
     fn folder_filter_accepts_partial_segment() {
-        let (manager, _dir) = tag_manager();
         let searcher = BookmarkSearcher::new();
         let bookmarks = vec![
             bookmark(
@@ -453,18 +356,21 @@ mod tests {
             bookmark("2", "music", "https://music.example", Some("书签栏/Play")),
         ];
 
-        let results = searcher
-            .search(
-                &bookmarks,
-                &manager,
-                "",
-                &[],
-                &vec!["proj".into()],
-                false,
-                10,
-            )
-            .expect("search");
+        let results = searcher.search(&bookmarks, "", &vec!["proj".into()], false, 10);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].bookmark.id, "1");
+    }
+
+    #[test]
+    fn like_pattern_escapes_special_chars() {
+        let pattern = folder_filter_to_like_pattern("100%/a_b").expect("pattern");
+        assert!(pattern.contains("100\\%"));
+        assert!(pattern.contains("a\\_b"));
+    }
+
+    #[test]
+    fn normalize_folder_filter_handles_separators() {
+        let normalized = normalize_folder_filter("Work>Project|Rust\\Docs").expect("normalized");
+        assert_eq!(normalized, vec!["work", "project", "rust", "docs"]);
     }
 }

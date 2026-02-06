@@ -1,10 +1,6 @@
 # Alfred Workflow 配置指南
 
-## 目标
-
-从本仓库源码生成并安装可用的 Alfred workflow（关键词 `cb` / `cbf`）。
-
-## 1. 构建与打包
+## 1. 生成可安装包
 
 ```bash
 ./scripts/bootstrap_workflow.sh -- --version 0.1.0
@@ -20,33 +16,26 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 
 ## 3. 验证
 
-在 Alfred 中输入：
+在 Alfred 中执行：
 
 - `cb rust`
-- `cbf rust`
+- `cb folder:work/project rust`
 
 ## 4. 可选变量
 
 在 workflow Variables 中可设置：
 
-- `BINARY_PATH`: 手动指定二进制路径
+- `BINARY_PATH`: 指定二进制路径
 
-也可在 shell 中设置：
+在 shell 中可设置：
 
-- `ALFRED_CHROME_BOOKMARKS_PATH`: 强制指定书签文件路径
+- `ALFRED_CHROME_BOOKMARKS_PATH`: 指定书签文件路径
 
 ```bash
 export ALFRED_CHROME_BOOKMARKS_PATH="$HOME/Library/Application Support/Arc/Default/Bookmarks"
 ```
 
-## 5. 目录过滤示例
+## 5. 常见问题
 
-```bash
-alfred-chrome-bookmarks search "rust folder:work/project"
-alfred-chrome-bookmarks search --folders "ai/research" "transformer"
-```
-
-## 6. 常见问题
-
-- 提示 `Binary not found`：检查 `BINARY_PATH` 或重新执行打包脚本。
-- 搜索无结果：先运行 `alfred-chrome-bookmarks refresh` 重新索引。
+- `Binary not found`: 设置 `BINARY_PATH` 或重新打包 workflow。
+- 无结果: 先运行 `alfred-chrome-bookmarks refresh` 再试。

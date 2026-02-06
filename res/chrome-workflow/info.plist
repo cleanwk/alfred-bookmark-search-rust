@@ -9,9 +9,9 @@
 	<key>createdby</key>
 	<string>cleanwk</string>
 	<key>description</key>
-	<string>Search Chrome bookmarks with tags (fast FTS index).</string>
+	<string>Search Chromium bookmarks with folder filters (fast FTS index).</string>
 	<key>name</key>
-	<string>Chrome Bookmarks (Fast)</string>
+	<string>Chromium Bookmarks (Fast)</string>
 	<key>objects</key>
 	<array>
 		<dict>
@@ -48,9 +48,9 @@
 				<key>scriptfile</key>
 				<string></string>
 				<key>subtext</key>
-				<string>Type to search Chrome bookmarks</string>
+				<string>Type to search bookmarks (folder-aware)</string>
 				<key>title</key>
-				<string>Chrome Bookmarks</string>
+				<string>Chromium Bookmarks</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -99,7 +99,7 @@
 				<key>subtext</key>
 				<string>Fuzzy search (slower)</string>
 				<key>title</key>
-				<string>Chrome Bookmarks (Fuzzy)</string>
+				<string>Chromium Bookmarks (Fuzzy)</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
