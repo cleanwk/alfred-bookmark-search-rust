@@ -428,7 +428,7 @@ mod tests {
             .expect("replace");
 
         let filtered = index
-            .list_bookmarks_by_folder_filters(&vec!["work/project".into()], 20)
+            .list_bookmarks_by_folder_filters(&["work/project".into()], 20)
             .expect("filter");
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].id, "1");
@@ -460,7 +460,7 @@ mod tests {
             .expect("replace");
 
         let filtered = index
-            .search_bookmarks_fts_with_folders("rust", &vec!["work".into()], 20)
+            .search_bookmarks_fts_with_folders("rust", &["work".into()], 20)
             .expect("fts")
             .expect("enabled");
 

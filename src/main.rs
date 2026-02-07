@@ -10,7 +10,9 @@ mod cli;
 mod index_db;
 mod searcher;
 
-use crate::bookmark::{compute_bookmarks_fingerprint, get_chrome_bookmarks_path, BookmarkCache};
+use crate::bookmark::{
+    compute_bookmarks_fingerprint, get_chrome_bookmarks_path_cached, BookmarkCache,
+};
 use crate::cli::{Opt, SubCommand};
 use crate::index_db::BookmarkIndex;
 use crate::searcher::BookmarkSearcher;
@@ -63,7 +65,8 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
     let needs_index = matches!(opt.cmd, SubCommand::Search { .. } | SubCommand::Stats);
 
     if needs_index {
-        let bookmarks_path = get_chrome_bookmarks_path().ok_or(AppError::BookmarksNotFound)?;
+        let bookmarks_path =
+            get_chrome_bookmarks_path_cached(&cache_dir).ok_or(AppError::BookmarksNotFound)?;
         ensure_bookmark_index(&index, &bookmark_cache, &bookmarks_path)?;
     }
 
@@ -77,7 +80,8 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
             handle_search(query, folders, fuzzy, limit, &index)?;
         }
         SubCommand::Refresh => {
-            let bookmarks_path = get_chrome_bookmarks_path().ok_or(AppError::BookmarksNotFound)?;
+            let bookmarks_path =
+                get_chrome_bookmarks_path_cached(&cache_dir).ok_or(AppError::BookmarksNotFound)?;
             bookmark_cache.invalidate();
             index
                 .clear_bookmarks_index()
@@ -108,7 +112,7 @@ fn ensure_bookmark_index(
     }
 
     let bookmarks = cache
-        .load(&bookmarks_path.to_path_buf())
+        .load(bookmarks_path)
         .map_err(|e| AppError::BookmarksReadError(e.to_string()))?;
 
     index
@@ -441,5 +445,19 @@ mod tests {
                 "docs".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn parse_query_ignores_empty_hash_token() {
+        let (query, folders) = parse_query_and_folder_filters("# rust #");
+        assert_eq!(query, "rust");
+        assert!(folders.is_empty());
+    }
+
+    #[test]
+    fn parse_query_accepts_hash_comma_separated_folders() {
+        let (query, folders) = parse_query_and_folder_filters("#work,project rust");
+        assert_eq!(query, "rust");
+        assert_eq!(folders, vec!["work".to_string(), "project".to_string()]);
     }
 }

@@ -10,3 +10,4 @@ AlfredPinboardRust.alfredworkflow
 Cargo.toml.back
 run_exec.sh
 alfred-pinboard-rs
+.DS_Store

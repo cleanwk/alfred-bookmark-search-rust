@@ -105,19 +105,16 @@ impl ChromeBookmarks {
     }
 }
 
-/// 获取受支持浏览器（Chromium系）书签文件路径
-pub fn get_chrome_bookmarks_path() -> Option<PathBuf> {
-    dirs::home_dir().and_then(|home| get_chrome_bookmarks_path_from_home(&home))
+/// 使用缓存获取受支持浏览器书签路径，减少每次调用的目录扫描成本
+pub fn get_chrome_bookmarks_path_cached(cache_dir: &Path) -> Option<PathBuf> {
+    if let Some(configured) = resolve_configured_bookmarks_path() {
+        return Some(configured);
+    }
+
+    dirs::home_dir().and_then(|home| get_chrome_bookmarks_path_cached_from_home(&home, cache_dir))
 }
 
 fn get_chrome_bookmarks_path_from_home(home: &Path) -> Option<PathBuf> {
-    if let Ok(path) = std::env::var("ALFRED_CHROME_BOOKMARKS_PATH") {
-        let configured = PathBuf::from(path);
-        if configured.exists() {
-            return Some(configured);
-        }
-    }
-
     let app_support_dir = home.join("Library/Application Support");
     let browser_roots = [
         "Google/Chrome",
@@ -151,6 +148,71 @@ fn get_chrome_bookmarks_path_from_home(home: &Path) -> Option<PathBuf> {
     }
 
     select_latest_bookmarks(candidates)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BookmarksSourceCache {
+    path: String,
+    modified_nanos: u128,
+    size: u64,
+}
+
+fn resolve_configured_bookmarks_path() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("ALFRED_CHROME_BOOKMARKS_PATH") {
+        let configured = PathBuf::from(path);
+        if configured.exists() {
+            return Some(configured);
+        }
+    }
+    None
+}
+
+fn get_chrome_bookmarks_path_cached_from_home(home: &Path, cache_dir: &Path) -> Option<PathBuf> {
+    let cache_file = cache_dir.join("bookmarks_source_path.json");
+    if let Some(cached_path) = load_cached_bookmarks_source_path(&cache_file) {
+        return Some(cached_path);
+    }
+
+    let discovered = get_chrome_bookmarks_path_from_home(home)?;
+    let _ = save_cached_bookmarks_source_path(&cache_file, &discovered);
+    Some(discovered)
+}
+
+fn load_cached_bookmarks_source_path(cache_file: &Path) -> Option<PathBuf> {
+    let data = std::fs::read(cache_file).ok()?;
+    let cache = serde_json::from_slice::<BookmarksSourceCache>(&data).ok()?;
+    let path = PathBuf::from(cache.path);
+    let metadata = std::fs::metadata(&path).ok()?;
+    let modified_nanos = metadata
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+
+    if modified_nanos == cache.modified_nanos && metadata.len() == cache.size {
+        Some(path)
+    } else {
+        None
+    }
+}
+
+fn save_cached_bookmarks_source_path(cache_file: &Path, path: &Path) -> std::io::Result<()> {
+    let metadata = std::fs::metadata(path)?;
+    let modified_nanos = metadata
+        .modified()
+        .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+
+    let cache = BookmarksSourceCache {
+        path: path.to_string_lossy().to_string(),
+        modified_nanos,
+        size: metadata.len(),
+    };
+    let bytes = serde_json::to_vec(&cache).map_err(|err| std::io::Error::other(err.to_string()))?;
+    write_atomic(cache_file, &bytes)
 }
 
 fn collect_bookmarks_from_browser_root(root: &Path, candidates: &mut Vec<PathBuf>) {
@@ -253,7 +315,7 @@ pub struct BookmarkCache {
 }
 
 impl BookmarkCache {
-    pub fn new(data_dir: &PathBuf) -> Self {
+    pub fn new(data_dir: &Path) -> Self {
         BookmarkCache {
             cache_path: data_dir.join("bookmarks_cache.json"),
             mtime_path: data_dir.join("bookmarks_mtime"),
@@ -268,7 +330,7 @@ impl BookmarkCache {
     /// 加载书签，使用缓存（如果Chrome书签文件未变化）
     pub fn load(
         &self,
-        bookmarks_path: &PathBuf,
+        bookmarks_path: &Path,
     ) -> Result<Vec<ChromeBookmark>, Box<dyn std::error::Error>> {
         let source_fingerprint = Self::fingerprint(bookmarks_path)?;
 
@@ -282,7 +344,7 @@ impl BookmarkCache {
         }
 
         // 缓存失效，重新解析
-        let chrome_bookmarks = match ChromeBookmarks::from_file(bookmarks_path.clone()) {
+        let chrome_bookmarks = match ChromeBookmarks::from_file(bookmarks_path.to_path_buf()) {
             Ok(parsed) => parsed,
             Err(err) => {
                 if let Some(bookmarks) = self.load_cached() {
@@ -295,9 +357,9 @@ impl BookmarkCache {
 
         // 写入缓存（忽略写入失败，不影响功能）
         if let Ok(json) = serde_json::to_vec(&bookmarks) {
-            let _ = Self::write_atomic(&self.cache_path, &json);
+            let _ = write_atomic(&self.cache_path, &json);
         }
-        let _ = Self::write_atomic(&self.mtime_path, source_fingerprint.as_bytes());
+        let _ = write_atomic(&self.mtime_path, source_fingerprint.as_bytes());
 
         Ok(bookmarks)
     }
@@ -322,18 +384,18 @@ impl BookmarkCache {
     fn fingerprint(bookmarks_path: &Path) -> Result<String, Box<dyn std::error::Error>> {
         compute_bookmarks_fingerprint(bookmarks_path)
     }
+}
 
-    fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
-        let tmp_path = path.with_extension("tmp");
-        if let Ok(file) = std::fs::File::create(&tmp_path) {
-            let mut writer = BufWriter::new(file);
-            writer.write_all(data)?;
-            writer.flush()?;
-            let _ = writer.get_ref().sync_all();
-            std::fs::rename(tmp_path, path)?;
-        }
-        Ok(())
+fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    let tmp_path = path.with_extension("tmp");
+    if let Ok(file) = std::fs::File::create(&tmp_path) {
+        let mut writer = BufWriter::new(file);
+        writer.write_all(data)?;
+        writer.flush()?;
+        let _ = writer.get_ref().sync_all();
+        std::fs::rename(tmp_path, path)?;
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -470,6 +532,52 @@ mod tests {
         let found = get_chrome_bookmarks_path_from_home(home).expect("find bookmarks");
         let found_str = found.to_string_lossy();
         assert!(found_str.contains("/Arc/") || found_str.contains("/Dia/"));
+    }
+
+    #[test]
+    fn cached_bookmarks_path_uses_saved_path_when_valid() {
+        let dir = tempdir().expect("tempdir");
+        let home = dir.path();
+        let cache_dir = home.join("cache");
+        fs::create_dir_all(&cache_dir).expect("create cache");
+
+        let default_path = home.join("Library/Application Support/Google/Chrome/Default");
+        fs::create_dir_all(&default_path).expect("create default");
+        fs::write(default_path.join("Bookmarks"), "{}").expect("write default");
+
+        let first =
+            get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("first resolve");
+        let second =
+            get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("second resolve");
+
+        assert_eq!(first, second);
+        assert!(cache_dir.join("bookmarks_source_path.json").exists());
+    }
+
+    #[test]
+    fn cached_bookmarks_path_falls_back_to_rescan_when_cache_stale() {
+        let dir = tempdir().expect("tempdir");
+        let home = dir.path();
+        let cache_dir = home.join("cache");
+        fs::create_dir_all(&cache_dir).expect("create cache");
+
+        let default_path = home.join("Library/Application Support/Google/Chrome/Default");
+        fs::create_dir_all(&default_path).expect("create default");
+        fs::write(default_path.join("Bookmarks"), "{}").expect("write default");
+
+        let profile_path = home.join("Library/Application Support/Google/Chrome/Profile 1");
+        fs::create_dir_all(&profile_path).expect("create profile");
+        fs::write(profile_path.join("Bookmarks"), "{\"bigger\":true}").expect("write profile");
+
+        let first =
+            get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("first resolve");
+        assert!(first.ends_with("Profile 1/Bookmarks"));
+
+        fs::remove_file(profile_path.join("Bookmarks")).expect("remove profile bookmarks");
+
+        let second =
+            get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("second resolve");
+        assert!(second.ends_with("Default/Bookmarks"));
     }
 
     #[test]

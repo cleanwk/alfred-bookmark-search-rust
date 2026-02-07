@@ -48,13 +48,16 @@ impl BookmarkSearcher {
         #[derive(Debug)]
         struct HeapItem {
             score: i64,
+            folder_depth: usize,
             idx: usize,
             bookmark: ChromeBookmark,
         }
 
         impl PartialEq for HeapItem {
             fn eq(&self, other: &Self) -> bool {
-                self.score == other.score && self.idx == other.idx
+                self.score == other.score
+                    && self.folder_depth == other.folder_depth
+                    && self.idx == other.idx
             }
         }
 
@@ -63,7 +66,10 @@ impl BookmarkSearcher {
         impl Ord for HeapItem {
             fn cmp(&self, other: &Self) -> Ordering {
                 match self.score.cmp(&other.score) {
-                    Ordering::Equal => other.idx.cmp(&self.idx),
+                    Ordering::Equal => match other.folder_depth.cmp(&self.folder_depth) {
+                        Ordering::Equal => other.idx.cmp(&self.idx),
+                        order => order,
+                    },
                     order => order,
                 }
             }
@@ -94,6 +100,7 @@ impl BookmarkSearcher {
 
             let candidate = HeapItem {
                 score,
+                folder_depth: bookmark_folder_depth(bookmark),
                 idx,
                 bookmark: bookmark.clone(),
             };
@@ -104,8 +111,11 @@ impl BookmarkSearcher {
             }
 
             if let Some(smallest) = heap.peek() {
-                let better =
-                    score > smallest.0.score || (score == smallest.0.score && idx < smallest.0.idx);
+                let better = score > smallest.0.score
+                    || (score == smallest.0.score
+                        && (candidate.folder_depth < smallest.0.folder_depth
+                            || (candidate.folder_depth == smallest.0.folder_depth
+                                && idx < smallest.0.idx)));
                 if better {
                     heap.pop();
                     heap.push(std::cmp::Reverse(candidate));
@@ -114,7 +124,12 @@ impl BookmarkSearcher {
         }
 
         let mut items: Vec<HeapItem> = heap.into_iter().map(|item| item.0).collect();
-        items.sort_unstable_by(|a, b| b.score.cmp(&a.score).then_with(|| a.idx.cmp(&b.idx)));
+        items.sort_unstable_by(|a, b| {
+            b.score
+                .cmp(&a.score)
+                .then_with(|| a.folder_depth.cmp(&b.folder_depth))
+                .then_with(|| a.idx.cmp(&b.idx))
+        });
 
         items
             .into_iter()
@@ -185,12 +200,7 @@ pub fn normalize_folder_filters(raw_filters: &[String]) -> Vec<Vec<String>> {
 }
 
 pub fn normalize_folder_filter(raw: &str) -> Option<Vec<String>> {
-    let cleaned = raw
-        .trim()
-        .to_lowercase()
-        .replace('\\', "/")
-        .replace('>', "/")
-        .replace('|', "/");
+    let cleaned = raw.trim().to_lowercase().replace(['\\', '>', '|'], "/");
 
     let segments: Vec<String> = cleaned
         .split('/')
@@ -280,6 +290,18 @@ fn escape_like_value(value: &str) -> String {
         .replace('_', "\\_")
 }
 
+fn bookmark_folder_depth(bookmark: &ChromeBookmark) -> usize {
+    bookmark
+        .folder_path_lower
+        .as_deref()
+        .map(|path| {
+            path.split('/')
+                .filter(|segment| !segment.is_empty())
+                .count()
+        })
+        .unwrap_or(usize::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -338,7 +360,7 @@ mod tests {
             bookmark("2", "music", "https://music.example", Some("书签栏/Play")),
         ];
 
-        let results = searcher.search(&bookmarks, "", &vec!["work/project".into()], false, 10);
+        let results = searcher.search(&bookmarks, "", &["work/project".into()], false, 10);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].bookmark.id, "1");
     }
@@ -356,9 +378,21 @@ mod tests {
             bookmark("2", "music", "https://music.example", Some("书签栏/Play")),
         ];
 
-        let results = searcher.search(&bookmarks, "", &vec!["proj".into()], false, 10);
+        let results = searcher.search(&bookmarks, "", &["proj".into()], false, 10);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].bookmark.id, "1");
+    }
+
+    #[test]
+    fn shallower_folder_ranked_first_when_scores_tie() {
+        let searcher = BookmarkSearcher::new();
+        let bookmarks = vec![
+            bookmark("1", "rust", "https://example.com", Some("root/rust")),
+            bookmark("2", "rust", "https://example.com", Some("root/team/rust")),
+        ];
+
+        let results = searcher.search(&bookmarks, "rust", &[], false, 10);
+        assert_eq!(results.first().expect("first").bookmark.id, "1");
     }
 
     #[test]
