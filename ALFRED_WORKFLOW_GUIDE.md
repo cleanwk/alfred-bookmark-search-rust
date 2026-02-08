@@ -41,14 +41,19 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 - `BINARY_PATH`: 指定二进制路径
 - `RESULT_LIMIT`: `cb` 默认返回条数（默认 `36`）
 - `FUZZY_LIMIT`: `cbf` 默认返回条数（默认 `24`）
+- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 指定只搜索某个浏览器（如 `chrome` / `dia` / `arc`）
 
 在 shell 中可设置：
 
 - `ALFRED_CHROME_BOOKMARKS_PATH`: 指定书签文件路径
+- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 指定浏览器来源（优先级低于 `ALFRED_CHROME_BOOKMARKS_PATH`）
 
 ```bash
 export ALFRED_CHROME_BOOKMARKS_PATH="$HOME/Library/Application Support/Arc/Default/Bookmarks"
+export ALFRED_CHROME_BOOKMARKS_BROWSER="dia"
 ```
+
+`ALFRED_CHROME_BOOKMARKS_BROWSER` 为空或设为 `all` 时，会恢复自动扫描全部受支持浏览器。
 
 ## 5. 常见问题
 

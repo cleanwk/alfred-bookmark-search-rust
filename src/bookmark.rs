@@ -50,6 +50,90 @@ pub struct BookmarkNode {
     pub children: Vec<BookmarkNode>,
 }
 
+#[derive(Clone, Copy)]
+struct BrowserSource {
+    key: &'static str,
+    aliases: &'static [&'static str],
+    roots: &'static [&'static str],
+}
+
+const BROWSER_SOURCES: &[BrowserSource] = &[
+    BrowserSource {
+        key: "chrome",
+        aliases: &["google-chrome", "google"],
+        roots: &[
+            "Google/Chrome",
+            "Google/Chrome Beta",
+            "Google/Chrome Dev",
+            "Google/Chrome Canary",
+        ],
+    },
+    BrowserSource {
+        key: "brave",
+        aliases: &["brave-browser"],
+        roots: &[
+            "BraveSoftware/Brave-Browser",
+            "BraveSoftware/Brave-Browser-Beta",
+            "BraveSoftware/Brave-Browser-Nightly",
+        ],
+    },
+    BrowserSource {
+        key: "edge",
+        aliases: &["microsoft-edge", "msedge"],
+        roots: &[
+            "Microsoft Edge",
+            "Microsoft Edge Beta",
+            "Microsoft Edge Dev",
+            "Microsoft Edge Canary",
+        ],
+    },
+    BrowserSource {
+        key: "chromium",
+        aliases: &[],
+        roots: &["Chromium"],
+    },
+    BrowserSource {
+        key: "vivaldi",
+        aliases: &[],
+        roots: &["Vivaldi"],
+    },
+    BrowserSource {
+        key: "arc",
+        aliases: &[],
+        roots: &["Arc", "The Browser Company/Arc"],
+    },
+    BrowserSource {
+        key: "dia",
+        aliases: &[],
+        roots: &["Dia", "The Browser Company/Dia"],
+    },
+    BrowserSource {
+        key: "opera",
+        aliases: &["opera-stable"],
+        roots: &["Opera", "com.operasoftware.Opera"],
+    },
+    BrowserSource {
+        key: "opera-developer",
+        aliases: &["opera-dev"],
+        roots: &["com.operasoftware.OperaDeveloper"],
+    },
+    BrowserSource {
+        key: "opera-next",
+        aliases: &["opera-beta"],
+        roots: &["com.operasoftware.OperaNext"],
+    },
+    BrowserSource {
+        key: "opera-gx",
+        aliases: &["operagx"],
+        roots: &["com.operasoftware.OperaGX"],
+    },
+    BrowserSource {
+        key: "sidekick",
+        aliases: &[],
+        roots: &["Sidekick"],
+    },
+];
+
 impl ChromeBookmarks {
     /// 从文件读取Chrome书签
     pub fn from_file(path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
@@ -111,41 +195,27 @@ pub fn get_chrome_bookmarks_path_cached(cache_dir: &Path) -> Option<PathBuf> {
         return Some(configured);
     }
 
-    dirs::home_dir().and_then(|home| get_chrome_bookmarks_path_cached_from_home(&home, cache_dir))
+    let browser_key = resolve_configured_browser_key();
+    dirs::home_dir().and_then(|home| {
+        get_chrome_bookmarks_path_cached_from_home_for_browser(
+            &home,
+            cache_dir,
+            browser_key.as_deref(),
+        )
+    })
 }
 
 fn get_chrome_bookmarks_path_from_home(home: &Path) -> Option<PathBuf> {
-    let app_support_dir = home.join("Library/Application Support");
-    let browser_roots = [
-        "Google/Chrome",
-        "Google/Chrome Beta",
-        "Google/Chrome Dev",
-        "Google/Chrome Canary",
-        "BraveSoftware/Brave-Browser",
-        "BraveSoftware/Brave-Browser-Beta",
-        "BraveSoftware/Brave-Browser-Nightly",
-        "Microsoft Edge",
-        "Microsoft Edge Beta",
-        "Microsoft Edge Dev",
-        "Microsoft Edge Canary",
-        "Chromium",
-        "Vivaldi",
-        "Arc",
-        "The Browser Company/Arc",
-        "Dia",
-        "The Browser Company/Dia",
-        "Opera",
-        "com.operasoftware.Opera",
-        "com.operasoftware.OperaDeveloper",
-        "com.operasoftware.OperaNext",
-        "com.operasoftware.OperaGX",
-        "Sidekick",
-    ];
+    get_chrome_bookmarks_path_from_home_for_browser(home, None)
+}
 
+fn get_chrome_bookmarks_path_from_home_for_browser(
+    home: &Path,
+    browser_key: Option<&str>,
+) -> Option<PathBuf> {
+    let app_support_dir = home.join("Library/Application Support");
     let mut candidates = Vec::new();
-    for browser_root in browser_roots {
-        collect_bookmarks_from_browser_root(&app_support_dir.join(browser_root), &mut candidates);
-    }
+    collect_bookmark_candidates(&app_support_dir, browser_key, &mut candidates);
 
     select_latest_bookmarks(candidates)
 }
@@ -167,15 +237,93 @@ fn resolve_configured_bookmarks_path() -> Option<PathBuf> {
     None
 }
 
+fn resolve_configured_browser_key() -> Option<String> {
+    let raw = std::env::var("ALFRED_CHROME_BOOKMARKS_BROWSER").ok()?;
+    let normalized = normalize_browser_identifier(&raw);
+    if normalized.is_empty() || normalized == "all" {
+        return None;
+    }
+
+    match find_browser_source(&normalized) {
+        Some(source) => Some(source.key.to_string()),
+        None => Some(normalized),
+    }
+}
+
 fn get_chrome_bookmarks_path_cached_from_home(home: &Path, cache_dir: &Path) -> Option<PathBuf> {
-    let cache_file = cache_dir.join("bookmarks_source_path.json");
+    get_chrome_bookmarks_path_cached_from_home_for_browser(home, cache_dir, None)
+}
+
+fn get_chrome_bookmarks_path_cached_from_home_for_browser(
+    home: &Path,
+    cache_dir: &Path,
+    browser_key: Option<&str>,
+) -> Option<PathBuf> {
+    let cache_file = bookmarks_source_cache_file(cache_dir, browser_key);
     if let Some(cached_path) = load_cached_bookmarks_source_path(&cache_file) {
         return Some(cached_path);
     }
 
-    let discovered = get_chrome_bookmarks_path_from_home(home)?;
+    let discovered = get_chrome_bookmarks_path_from_home_for_browser(home, browser_key)?;
     let _ = save_cached_bookmarks_source_path(&cache_file, &discovered);
     Some(discovered)
+}
+
+fn bookmarks_source_cache_file(cache_dir: &Path, browser_key: Option<&str>) -> PathBuf {
+    match browser_key {
+        Some(key) => {
+            let safe_key = key
+                .chars()
+                .map(|ch| {
+                    if ch.is_ascii_alphanumeric() || ch == '-' {
+                        ch
+                    } else {
+                        '_'
+                    }
+                })
+                .collect::<String>();
+            cache_dir.join(format!("bookmarks_source_path.{}.json", safe_key))
+        }
+        None => cache_dir.join("bookmarks_source_path.json"),
+    }
+}
+
+fn normalize_browser_identifier(raw: &str) -> String {
+    raw.trim()
+        .chars()
+        .map(|ch| match ch {
+            '_' | ' ' => '-',
+            _ => ch.to_ascii_lowercase(),
+        })
+        .collect()
+}
+
+fn find_browser_source(identifier: &str) -> Option<&'static BrowserSource> {
+    BROWSER_SOURCES.iter().find(|source| {
+        source.key == identifier || source.aliases.iter().any(|alias| *alias == identifier)
+    })
+}
+
+fn collect_bookmark_candidates(
+    app_support_dir: &Path,
+    browser_key: Option<&str>,
+    candidates: &mut Vec<PathBuf>,
+) {
+    if let Some(key) = browser_key {
+        let Some(source) = find_browser_source(key) else {
+            return;
+        };
+        for browser_root in source.roots {
+            collect_bookmarks_from_browser_root(&app_support_dir.join(browser_root), candidates);
+        }
+        return;
+    }
+
+    for source in BROWSER_SOURCES {
+        for browser_root in source.roots {
+            collect_bookmarks_from_browser_root(&app_support_dir.join(browser_root), candidates);
+        }
+    }
 }
 
 fn load_cached_bookmarks_source_path(cache_file: &Path) -> Option<PathBuf> {
@@ -535,6 +683,31 @@ mod tests {
     }
 
     #[test]
+    fn get_chrome_bookmarks_path_from_home_respects_browser_filter() {
+        let dir = tempdir().expect("tempdir");
+        let home = dir.path();
+
+        let chrome_profile = home.join("Library/Application Support/Google/Chrome/Default");
+        fs::create_dir_all(&chrome_profile).expect("create chrome profile");
+        fs::write(chrome_profile.join("Bookmarks"), "{}").expect("write chrome bookmarks");
+
+        let dia_profile =
+            home.join("Library/Application Support/The Browser Company/Dia/Profile 2");
+        fs::create_dir_all(&dia_profile).expect("create dia profile");
+        fs::write(dia_profile.join("Bookmarks"), "{\"bigger\":true}").expect("write dia bookmarks");
+
+        let chrome_only =
+            get_chrome_bookmarks_path_from_home_for_browser(home, Some("chrome")).expect("chrome");
+        assert!(chrome_only.ends_with("Google/Chrome/Default/Bookmarks"));
+
+        let dia_only =
+            get_chrome_bookmarks_path_from_home_for_browser(home, Some("dia")).expect("dia");
+        assert!(dia_only.ends_with("The Browser Company/Dia/Profile 2/Bookmarks"));
+
+        assert!(get_chrome_bookmarks_path_from_home_for_browser(home, Some("unknown")).is_none());
+    }
+
+    #[test]
     fn cached_bookmarks_path_uses_saved_path_when_valid() {
         let dir = tempdir().expect("tempdir");
         let home = dir.path();
@@ -578,6 +751,37 @@ mod tests {
         let second =
             get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("second resolve");
         assert!(second.ends_with("Default/Bookmarks"));
+    }
+
+    #[test]
+    fn cached_bookmarks_path_isolated_by_browser_filter() {
+        let dir = tempdir().expect("tempdir");
+        let home = dir.path();
+        let cache_dir = home.join("cache");
+        fs::create_dir_all(&cache_dir).expect("create cache");
+
+        let chrome_path = home.join("Library/Application Support/Google/Chrome/Default");
+        fs::create_dir_all(&chrome_path).expect("create chrome");
+        fs::write(chrome_path.join("Bookmarks"), "{}").expect("write chrome");
+
+        let dia_path = home.join("Library/Application Support/The Browser Company/Dia/Default");
+        fs::create_dir_all(&dia_path).expect("create dia");
+        fs::write(dia_path.join("Bookmarks"), "{\"dia\":1}").expect("write dia");
+
+        let chrome = get_chrome_bookmarks_path_cached_from_home_for_browser(
+            home,
+            &cache_dir,
+            Some("chrome"),
+        )
+        .expect("chrome resolve");
+        let dia =
+            get_chrome_bookmarks_path_cached_from_home_for_browser(home, &cache_dir, Some("dia"))
+                .expect("dia resolve");
+
+        assert!(chrome.ends_with("Google/Chrome/Default/Bookmarks"));
+        assert!(dia.ends_with("The Browser Company/Dia/Default/Bookmarks"));
+        assert!(cache_dir.join("bookmarks_source_path.chrome.json").exists());
+        assert!(cache_dir.join("bookmarks_source_path.dia.json").exists());
     }
 
     #[test]

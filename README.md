@@ -86,20 +86,29 @@ alfred-chrome-bookmarks actions [query...]
 ## 环境变量
 
 - `ALFRED_CHROME_BOOKMARKS_PATH`: 强制指定书签文件路径。
+- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 指定浏览器来源（例如 `chrome` / `dia` / `arc`）。
 - `alfred_workflow_data`: Alfred 数据目录（自动使用）。
 - `alfred_workflow_cache`: Alfred 缓存目录（自动使用）。
+
+优先级：`ALFRED_CHROME_BOOKMARKS_PATH` > `ALFRED_CHROME_BOOKMARKS_BROWSER` > 自动扫描全部受支持浏览器。
+当 `ALFRED_CHROME_BOOKMARKS_BROWSER` 为空或为 `all` 时，等价于自动扫描。
 
 ## Alfred Workflow Variables
 
 - `BINARY_PATH`: 手动指定二进制路径（可选）。
 - `RESULT_LIMIT`: `cb` 默认结果上限（默认 `36`）。
 - `FUZZY_LIMIT`: `cbf` 默认结果上限（默认 `24`）。
+- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 只搜索指定浏览器（建议在 Alfred 里配置）。
 
 示例：
 
 ```bash
 export ALFRED_CHROME_BOOKMARKS_PATH="$HOME/Library/Application Support/Arc/Default/Bookmarks"
+export ALFRED_CHROME_BOOKMARKS_BROWSER="dia"
 ```
+
+`ALFRED_CHROME_BOOKMARKS_BROWSER` 支持值（含常见别名）：
+`chrome` `brave` `edge` `chromium` `vivaldi` `arc` `dia` `opera` `opera-developer` `opera-next` `opera-gx` `sidekick`
 
 ## 打包脚本
 

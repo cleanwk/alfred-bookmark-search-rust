@@ -310,14 +310,16 @@
 		</dict>
 	</dict>
 	<key>variables</key>
-	<dict>
-		<key>BINARY_PATH</key>
-		<string></string>
-		<key>RESULT_LIMIT</key>
-		<string>36</string>
-		<key>FUZZY_LIMIT</key>
-		<string>24</string>
-	</dict>
+		<dict>
+			<key>BINARY_PATH</key>
+			<string></string>
+			<key>ALFRED_CHROME_BOOKMARKS_BROWSER</key>
+			<string></string>
+			<key>RESULT_LIMIT</key>
+			<string>36</string>
+			<key>FUZZY_LIMIT</key>
+			<string>24</string>
+		</dict>
 	<key>version</key>
 	<string>0.1.0</string>
 	<key>webaddress</key>
