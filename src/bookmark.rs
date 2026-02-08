@@ -55,6 +55,7 @@ struct BrowserSource {
     key: &'static str,
     aliases: &'static [&'static str],
     roots: &'static [&'static str],
+    dir_hints: &'static [&'static str],
 }
 
 const BROWSER_SOURCES: &[BrowserSource] = &[
@@ -67,6 +68,7 @@ const BROWSER_SOURCES: &[BrowserSource] = &[
             "Google/Chrome Dev",
             "Google/Chrome Canary",
         ],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "brave",
@@ -76,6 +78,7 @@ const BROWSER_SOURCES: &[BrowserSource] = &[
             "BraveSoftware/Brave-Browser-Beta",
             "BraveSoftware/Brave-Browser-Nightly",
         ],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "edge",
@@ -86,51 +89,66 @@ const BROWSER_SOURCES: &[BrowserSource] = &[
             "Microsoft Edge Dev",
             "Microsoft Edge Canary",
         ],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "chromium",
         aliases: &[],
         roots: &["Chromium"],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "vivaldi",
         aliases: &[],
         roots: &["Vivaldi"],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "arc",
         aliases: &[],
         roots: &["Arc", "The Browser Company/Arc"],
+        dir_hints: &["arc"],
     },
     BrowserSource {
         key: "dia",
-        aliases: &[],
-        roots: &["Dia", "The Browser Company/Dia"],
+        aliases: &["dia-browser"],
+        roots: &[
+            "Dia",
+            "Dia Browser",
+            "The Browser Company/Dia",
+            "The Browser Company/Dia Browser",
+        ],
+        dir_hints: &["dia"],
     },
     BrowserSource {
         key: "opera",
         aliases: &["opera-stable"],
         roots: &["Opera", "com.operasoftware.Opera"],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "opera-developer",
         aliases: &["opera-dev"],
         roots: &["com.operasoftware.OperaDeveloper"],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "opera-next",
         aliases: &["opera-beta"],
         roots: &["com.operasoftware.OperaNext"],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "opera-gx",
         aliases: &["operagx"],
         roots: &["com.operasoftware.OperaGX"],
+        dir_hints: &[],
     },
     BrowserSource {
         key: "sidekick",
         aliases: &[],
         roots: &["Sidekick"],
+        dir_hints: &[],
     },
 ];
 
@@ -308,6 +326,9 @@ fn collect_bookmark_candidates(
         for browser_root in source.roots {
             collect_bookmarks_from_browser_root(&app_support_dir.join(browser_root), candidates);
         }
+        if candidates.is_empty() && !source.dir_hints.is_empty() {
+            collect_bookmarks_from_hints(app_support_dir, source.dir_hints, candidates);
+        }
         return;
     }
 
@@ -360,6 +381,15 @@ fn collect_bookmarks_from_browser_root(root: &Path, candidates: &mut Vec<PathBuf
         return;
     }
 
+    collect_bookmarks_from_profile_root(root, candidates);
+
+    let user_data_root = root.join("User Data");
+    if user_data_root.exists() {
+        collect_bookmarks_from_profile_root(&user_data_root, candidates);
+    }
+}
+
+fn collect_bookmarks_from_profile_root(root: &Path, candidates: &mut Vec<PathBuf>) {
     let root_bookmarks = root.join("Bookmarks");
     if root_bookmarks.exists() {
         candidates.push(root_bookmarks);
@@ -388,6 +418,71 @@ fn collect_bookmarks_from_browser_root(root: &Path, candidates: &mut Vec<PathBuf
             candidates.push(profile_bookmarks);
         }
     }
+}
+
+fn collect_bookmarks_from_hints(
+    app_support_dir: &Path,
+    hints: &[&str],
+    candidates: &mut Vec<PathBuf>,
+) {
+    let Ok(entries) = std::fs::read_dir(app_support_dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+
+        let dir_name = entry.file_name();
+        let dir_name = dir_name.to_string_lossy();
+        let dir_name_lower = dir_name.to_ascii_lowercase();
+
+        if matches_hint_prefix(&dir_name_lower, hints) {
+            collect_bookmarks_from_browser_root(&entry.path(), candidates);
+        }
+
+        // Some vendors nest browser dirs under a parent folder, e.g. "The Browser Company".
+        if dir_name_lower.contains("browser company") {
+            collect_bookmarks_from_hinted_subdirs(&entry.path(), hints, candidates);
+        }
+    }
+}
+
+fn collect_bookmarks_from_hinted_subdirs(
+    base_dir: &Path,
+    hints: &[&str],
+    candidates: &mut Vec<PathBuf>,
+) {
+    let Ok(entries) = std::fs::read_dir(base_dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+
+        let dir_name = entry.file_name();
+        let dir_name = dir_name.to_string_lossy();
+        let dir_name_lower = dir_name.to_ascii_lowercase();
+
+        if matches_hint_prefix(&dir_name_lower, hints) {
+            collect_bookmarks_from_browser_root(&entry.path(), candidates);
+        }
+    }
+}
+
+fn matches_hint_prefix(dir_name_lower: &str, hints: &[&str]) -> bool {
+    hints
+        .iter()
+        .any(|hint| dir_name_lower.starts_with(&hint.to_ascii_lowercase()))
 }
 
 fn is_chromium_profile_dir(name: &str) -> bool {
@@ -700,6 +795,38 @@ mod tests {
         assert!(dia_only.ends_with("The Browser Company/Dia/Profile 2/Bookmarks"));
 
         assert!(get_chrome_bookmarks_path_from_home_for_browser(home, Some("unknown")).is_none());
+    }
+
+    #[test]
+    fn get_chrome_bookmarks_path_supports_user_data_layout() {
+        let dir = tempdir().expect("tempdir");
+        let home = dir.path();
+
+        let dia_user_data =
+            home.join("Library/Application Support/The Browser Company/Dia/User Data/Default");
+        fs::create_dir_all(&dia_user_data).expect("create dia user data");
+        fs::write(dia_user_data.join("Bookmarks"), "{\"from\":\"user-data\"}")
+            .expect("write dia user data bookmarks");
+
+        let found =
+            get_chrome_bookmarks_path_from_home_for_browser(home, Some("dia")).expect("find dia");
+        assert!(found.ends_with("The Browser Company/Dia/User Data/Default/Bookmarks"));
+    }
+
+    #[test]
+    fn get_chrome_bookmarks_path_supports_dia_hint_dirs_under_vendor_root() {
+        let dir = tempdir().expect("tempdir");
+        let home = dir.path();
+
+        let dia_alt =
+            home.join("Library/Application Support/The Browser Company/Dia Nightly/Default");
+        fs::create_dir_all(&dia_alt).expect("create dia nightly");
+        fs::write(dia_alt.join("Bookmarks"), "{\"from\":\"hint\"}")
+            .expect("write dia nightly bookmarks");
+
+        let found =
+            get_chrome_bookmarks_path_from_home_for_browser(home, Some("dia")).expect("find dia");
+        assert!(found.ends_with("The Browser Company/Dia Nightly/Default/Bookmarks"));
     }
 
     #[test]
