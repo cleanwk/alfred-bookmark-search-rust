@@ -325,7 +325,7 @@ impl BookmarkIndex {
 fn build_fts_query(query: &str) -> Option<String> {
     let mut parts = Vec::new();
 
-    for token in query.split_whitespace() {
+    for token in query.split(|c: char| c.is_whitespace() || c == '/') {
         let cleaned: String = token
             .chars()
             .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_' || *c == '.')

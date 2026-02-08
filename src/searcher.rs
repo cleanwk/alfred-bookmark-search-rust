@@ -140,49 +140,83 @@ impl BookmarkSearcher {
     }
 
     fn fuzzy_search(&self, bookmark: &ChromeBookmark, query: &str) -> i64 {
-        let mut max_score = 0i64;
-
-        if let Some(score) = self.fuzzy_matcher.fuzzy_match(&bookmark.name, query) {
-            max_score = max_score.max(score * 2);
+        let tokens: Vec<&str> = query.split_whitespace().collect();
+        if tokens.is_empty() {
+            return 0;
         }
 
-        if let Some(score) = self.fuzzy_matcher.fuzzy_match(&bookmark.url, query) {
-            max_score = max_score.max(score);
-        }
+        let mut total_score = 0i64;
 
-        if let Some(ref folder_path) = bookmark.folder_path {
-            if let Some(score) = self.fuzzy_matcher.fuzzy_match(folder_path, query) {
-                max_score = max_score.max(score / 2);
+        for token in &tokens {
+            let mut max_score = 0i64;
+
+            if let Some(score) = self.fuzzy_matcher.fuzzy_match(&bookmark.name, token) {
+                max_score = max_score.max(score * 2);
             }
+
+            if let Some(score) = self.fuzzy_matcher.fuzzy_match(&bookmark.url, token) {
+                max_score = max_score.max(score);
+            }
+
+            if let Some(ref folder_path) = bookmark.folder_path {
+                if let Some(score) = self.fuzzy_matcher.fuzzy_match(folder_path, token) {
+                    max_score = max_score.max(score / 2);
+                }
+            }
+
+            if max_score <= 0 {
+                return 0;
+            }
+
+            total_score += max_score;
         }
 
-        max_score
+        total_score
     }
 
     fn exact_search(&self, bookmark: &ChromeBookmark, query_lower: &str) -> i64 {
-        let mut score = 0i64;
+        let tokens: Vec<&str> = query_lower
+            .split_whitespace()
+            .filter(|t| !t.is_empty())
+            .collect();
 
-        if bookmark.name_lower.contains(query_lower) {
-            score += 200;
-            if bookmark.name_lower == query_lower {
-                score += 100;
-            }
-            if bookmark.name_lower.starts_with(query_lower) {
-                score += 50;
-            }
+        if tokens.is_empty() {
+            return 0;
         }
 
-        if bookmark.url_lower.contains(query_lower) {
-            score += 100;
-        }
+        let mut total_score = 0i64;
 
-        if let Some(ref folder_lower) = bookmark.folder_path_lower {
-            if folder_lower.contains(query_lower) {
-                score += 50;
+        for token in &tokens {
+            let mut token_score = 0i64;
+
+            if bookmark.name_lower.contains(token) {
+                token_score += 200;
+                if bookmark.name_lower == *token {
+                    token_score += 100;
+                }
+                if bookmark.name_lower.starts_with(token) {
+                    token_score += 50;
+                }
             }
+
+            if bookmark.url_lower.contains(token) {
+                token_score += 100;
+            }
+
+            if let Some(ref folder_lower) = bookmark.folder_path_lower {
+                if folder_lower.contains(token) {
+                    token_score += 50;
+                }
+            }
+
+            if token_score == 0 {
+                return 0;
+            }
+
+            total_score += token_score;
         }
 
-        score
+        total_score
     }
 }
 
@@ -393,6 +427,77 @@ mod tests {
 
         let results = searcher.search(&bookmarks, "rust", &[], false, 10);
         assert_eq!(results.first().expect("first").bookmark.id, "1");
+    }
+
+    #[test]
+    fn multi_token_exact_search_requires_all_tokens_match() {
+        let searcher = BookmarkSearcher::new();
+        let bookmarks = vec![
+            bookmark(
+                "1",
+                "Rust Async Guide",
+                "https://rust-lang.org/async",
+                Some("书签栏/Work/Docs"),
+            ),
+            bookmark(
+                "2",
+                "Python Guide",
+                "https://python.org",
+                Some("书签栏/Work/Docs"),
+            ),
+            bookmark(
+                "3",
+                "Rust Game",
+                "https://game.example",
+                Some("书签栏/Play"),
+            ),
+        ];
+
+        // Both "rust" and "work" must match
+        let results = searcher.search(&bookmarks, "rust work", &[], false, 10);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].bookmark.id, "1");
+    }
+
+    #[test]
+    fn multi_token_search_order_independent() {
+        let searcher = BookmarkSearcher::new();
+        let bookmarks = vec![bookmark(
+            "1",
+            "Rust Doc",
+            "https://doc.rust-lang.org",
+            Some("书签栏/Work/Project"),
+        )];
+
+        let results_a = searcher.search(&bookmarks, "rust work", &[], false, 10);
+        let results_b = searcher.search(&bookmarks, "work rust", &[], false, 10);
+        assert_eq!(results_a.len(), 1);
+        assert_eq!(results_b.len(), 1);
+        assert_eq!(results_a[0].bookmark.id, results_b[0].bookmark.id);
+    }
+
+    #[test]
+    fn multi_token_search_matches_folder_path_with_slash() {
+        let searcher = BookmarkSearcher::new();
+        let bookmarks = vec![
+            bookmark(
+                "1",
+                "Rust Doc",
+                "https://doc.rust-lang.org",
+                Some("书签栏/Work/Project/Rust"),
+            ),
+            bookmark(
+                "2",
+                "Music",
+                "https://music.example",
+                Some("书签栏/Play/Music"),
+            ),
+        ];
+
+        // "work/project" as a single token matches folder path substring
+        let results = searcher.search(&bookmarks, "work/project", &[], false, 10);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].bookmark.id, "1");
     }
 
     #[test]
