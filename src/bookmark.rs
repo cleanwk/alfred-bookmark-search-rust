@@ -205,10 +205,6 @@ pub fn get_chrome_bookmarks_path_cached(cache_dir: &Path) -> Option<PathBuf> {
     })
 }
 
-fn get_chrome_bookmarks_path_from_home(home: &Path) -> Option<PathBuf> {
-    get_chrome_bookmarks_path_from_home_for_browser(home, None)
-}
-
 fn get_chrome_bookmarks_path_from_home_for_browser(
     home: &Path,
     browser_key: Option<&str>,
@@ -248,10 +244,6 @@ fn resolve_configured_browser_key() -> Option<String> {
         Some(source) => Some(source.key.to_string()),
         None => Some(normalized),
     }
-}
-
-fn get_chrome_bookmarks_path_cached_from_home(home: &Path, cache_dir: &Path) -> Option<PathBuf> {
-    get_chrome_bookmarks_path_cached_from_home_for_browser(home, cache_dir, None)
 }
 
 fn get_chrome_bookmarks_path_cached_from_home_for_browser(
@@ -299,9 +291,9 @@ fn normalize_browser_identifier(raw: &str) -> String {
 }
 
 fn find_browser_source(identifier: &str) -> Option<&'static BrowserSource> {
-    BROWSER_SOURCES.iter().find(|source| {
-        source.key == identifier || source.aliases.iter().any(|alias| *alias == identifier)
-    })
+    BROWSER_SOURCES
+        .iter()
+        .find(|source| source.key == identifier || source.aliases.contains(&identifier))
 }
 
 fn collect_bookmark_candidates(
@@ -655,11 +647,13 @@ mod tests {
         fs::create_dir_all(&profile_path).expect("create profile");
         fs::write(profile_path.join("Bookmarks"), "{\"bigger\":true}").expect("write profile");
 
-        let found_profile = get_chrome_bookmarks_path_from_home(home).expect("find latest");
+        let found_profile =
+            get_chrome_bookmarks_path_from_home_for_browser(home, None).expect("find latest");
         assert!(found_profile.ends_with("Profile 1/Bookmarks"));
 
         fs::remove_file(profile_path.join("Bookmarks")).expect("remove profile");
-        let found_default = get_chrome_bookmarks_path_from_home(home).expect("find default");
+        let found_default =
+            get_chrome_bookmarks_path_from_home_for_browser(home, None).expect("find default");
         assert!(found_default.ends_with("Default/Bookmarks"));
     }
 
@@ -677,7 +671,8 @@ mod tests {
         fs::create_dir_all(&dia_profile).expect("create dia profile");
         fs::write(dia_profile.join("Bookmarks"), "{\"size\":1}").expect("write dia bookmarks");
 
-        let found = get_chrome_bookmarks_path_from_home(home).expect("find bookmarks");
+        let found =
+            get_chrome_bookmarks_path_from_home_for_browser(home, None).expect("find bookmarks");
         let found_str = found.to_string_lossy();
         assert!(found_str.contains("/Arc/") || found_str.contains("/Dia/"));
     }
@@ -718,10 +713,10 @@ mod tests {
         fs::create_dir_all(&default_path).expect("create default");
         fs::write(default_path.join("Bookmarks"), "{}").expect("write default");
 
-        let first =
-            get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("first resolve");
-        let second =
-            get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("second resolve");
+        let first = get_chrome_bookmarks_path_cached_from_home_for_browser(home, &cache_dir, None)
+            .expect("first resolve");
+        let second = get_chrome_bookmarks_path_cached_from_home_for_browser(home, &cache_dir, None)
+            .expect("second resolve");
 
         assert_eq!(first, second);
         assert!(cache_dir.join("bookmarks_source_path.json").exists());
@@ -742,14 +737,14 @@ mod tests {
         fs::create_dir_all(&profile_path).expect("create profile");
         fs::write(profile_path.join("Bookmarks"), "{\"bigger\":true}").expect("write profile");
 
-        let first =
-            get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("first resolve");
+        let first = get_chrome_bookmarks_path_cached_from_home_for_browser(home, &cache_dir, None)
+            .expect("first resolve");
         assert!(first.ends_with("Profile 1/Bookmarks"));
 
         fs::remove_file(profile_path.join("Bookmarks")).expect("remove profile bookmarks");
 
-        let second =
-            get_chrome_bookmarks_path_cached_from_home(home, &cache_dir).expect("second resolve");
+        let second = get_chrome_bookmarks_path_cached_from_home_for_browser(home, &cache_dir, None)
+            .expect("second resolve");
         assert!(second.ends_with("Default/Bookmarks"));
     }
 
