@@ -55,6 +55,6 @@ fi
 echo "Next:"
 echo "  1) Double-click the generated .alfredworkflow file"
 echo "  2) In Alfred workflow variables, optionally set BINARY_PATH"
-echo "  3) Run keyword 'cb' in Alfred to verify results"
+echo "  3) Run keyword 'cb' (search) or 'cba' (actions) in Alfred to verify results"
 
 popd >/dev/null

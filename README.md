@@ -7,7 +7,9 @@
 - 极致快：SQLite FTS5 + 本地索引，默认搜索路径尽量走数据库查询。
 - 多浏览器支持：Chrome、Arc、Dia、Brave、Edge、Vivaldi、Chromium、Opera 等。
 - 目录过滤：支持多级目录匹配（如 `work/project`），并支持内联语法。
-- Alfred 友好：`cb` 普通搜索，`cbf` 模糊搜索。
+- Alfred 友好：`cb` 普通搜索，`cbf` 模糊搜索，`cba` 动作中心。
+- 更快交互：`cb`/`cbf` 分别使用不同节流延时与默认结果上限。
+- 默认热键：`⌃⌥⌘B` 触发主搜索（可在 Alfred 中改键）。
 
 ## 从源码到可用 Workflow
 
@@ -22,6 +24,13 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 
 - `cb rust`
 - `cb folder:work/project rust`
+- `cba`
+
+主搜索结果支持：
+
+- `↩` 打开链接
+- `⌘↩` 复制 URL
+- `⌥` 查看目录信息（只读）
 
 ## 搜索语法
 
@@ -61,6 +70,7 @@ alfred-chrome-bookmarks search "tokio #backend #docs async"
 alfred-chrome-bookmarks search [--folders ...] [--fuzzy] [--limit N] <query...>
 alfred-chrome-bookmarks refresh
 alfred-chrome-bookmarks stats
+alfred-chrome-bookmarks actions [query...]
 ```
 
 ## 速度优化点
@@ -69,6 +79,7 @@ alfred-chrome-bookmarks stats
 - 目录过滤：在 SQL 侧先做 `LIKE` 过滤，再返回结果。
 - 模糊搜索：仅在 `cbf` 或 `--fuzzy` 时启用（更慢但容错更高）。
 - 书签索引按 fingerprint 增量刷新，避免重复解析。
+- 索引检查有 2 秒 TTL，减少连续按键触发时的重复检查。
 - SQLite 使用 `WAL` + `NORMAL` + `mmap` 配置。
 
 ## 环境变量
@@ -76,6 +87,12 @@ alfred-chrome-bookmarks stats
 - `ALFRED_CHROME_BOOKMARKS_PATH`: 强制指定书签文件路径。
 - `alfred_workflow_data`: Alfred 数据目录（自动使用）。
 - `alfred_workflow_cache`: Alfred 缓存目录（自动使用）。
+
+## Alfred Workflow Variables
+
+- `BINARY_PATH`: 手动指定二进制路径（可选）。
+- `RESULT_LIMIT`: `cb` 默认结果上限（默认 `36`）。
+- `FUZZY_LIMIT`: `cbf` 默认结果上限（默认 `24`）。
 
 示例：
 

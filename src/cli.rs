@@ -35,4 +35,11 @@ pub enum SubCommand {
     /// 显示统计信息
     #[structopt(name = "stats", alias = "st")]
     Stats,
+
+    /// 显示 workflow 动作列表
+    #[structopt(name = "actions", alias = "a")]
+    Actions {
+        /// 动作过滤关键词
+        query: Vec<String>,
+    },
 }

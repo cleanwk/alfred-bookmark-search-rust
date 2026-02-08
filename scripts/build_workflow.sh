@@ -93,6 +93,7 @@ if [[ ! -x "$BINARY_PATH" ]]; then
 fi
 
 mkdir -p "$(dirname "$OUTPUT_PATH")"
+OUTPUT_PATH="$(cd "$(dirname "$OUTPUT_PATH")" && pwd)/$(basename "$OUTPUT_PATH")"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/alfred-workflow.XXXXXX")"
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -103,6 +104,14 @@ cp -R "$WORKFLOW_TEMPLATE/." "$TMP_DIR/"
 cp "$BINARY_PATH" "$TMP_DIR/alfred-chrome-bookmarks"
 chmod +x "$TMP_DIR/alfred-chrome-bookmarks"
 chmod +x "$TMP_DIR/run.sh"
+
+if [[ -f "$ROOT_DIR/README.md" ]]; then
+  cp "$ROOT_DIR/README.md" "$TMP_DIR/README.md"
+fi
+
+if [[ -f "$ROOT_DIR/ALFRED_WORKFLOW_GUIDE.md" ]]; then
+  cp "$ROOT_DIR/ALFRED_WORKFLOW_GUIDE.md" "$TMP_DIR/ALFRED_WORKFLOW_GUIDE.md"
+fi
 
 if [[ -n "$VERSION" ]]; then
   if /usr/libexec/PlistBuddy -c "Print :version" "$TMP_DIR/info.plist" >/dev/null 2>&1; then

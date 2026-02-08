@@ -9,7 +9,7 @@
 	<key>createdby</key>
 	<string>cleanwk</string>
 	<key>description</key>
-	<string>Search Chromium bookmarks with folder filters (fast FTS index).</string>
+	<string>Search Chromium bookmarks with folder filters, hotkey entry, and action center.</string>
 	<key>name</key>
 	<string>Chromium Bookmarks (Fast)</string>
 	<key>objects</key>
@@ -32,7 +32,7 @@
 				<key>keyword</key>
 				<string>cb</string>
 				<key>queuedelaycustom</key>
-				<real>0.1</real>
+				<real>0.06</real>
 				<key>queuedelayimmediatelyinitially</key>
 				<true/>
 				<key>queuedelaymode</key>
@@ -42,7 +42,7 @@
 				<key>runningsubtext</key>
 				<string>Searching bookmarks…</string>
 				<key>script</key>
-				<string>./run.sh search "$1"</string>
+				<string>./run.sh search --limit "${RESULT_LIMIT:-36}" "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
@@ -81,7 +81,7 @@
 				<key>keyword</key>
 				<string>cbf</string>
 				<key>queuedelaycustom</key>
-				<real>0.1</real>
+				<real>0.12</real>
 				<key>queuedelayimmediatelyinitially</key>
 				<true/>
 				<key>queuedelaymode</key>
@@ -91,7 +91,7 @@
 				<key>runningsubtext</key>
 				<string>Fuzzy searching bookmarks…</string>
 				<key>script</key>
-				<string>./run.sh search --fuzzy "$1"</string>
+				<string>./run.sh search --fuzzy --limit "${FUZZY_LIMIT:-24}" "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
@@ -115,21 +115,103 @@
 		<dict>
 			<key>config</key>
 			<dict>
-				<key>browser</key>
-				<string></string>
-				<key>skipqueryencode</key>
+				<key>alfredfiltersresults</key>
 				<false/>
-				<key>skipvarencode</key>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>argumenttreatemptyqueryasnil</key>
 				<false/>
-				<key>spaces</key>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>127</integer>
+				<key>keyword</key>
+				<string>cba</string>
+				<key>queuedelaycustom</key>
+				<real>0.05</real>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>runningsubtext</key>
+				<string>Loading workflow actions…</string>
+				<key>script</key>
+				<string>./run.sh actions "$1"</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
 				<string></string>
-				<key>url</key>
-				<string>{query}</string>
+				<key>subtext</key>
+				<string>Workflow actions: refresh, stats, docs</string>
+				<key>title</key>
+				<string>Chromium Bookmarks Actions</string>
+				<key>type</key>
+				<integer>0</integer>
+				<key>withspace</key>
+				<true/>
 			</dict>
 			<key>type</key>
-			<string>alfred.workflow.action.openurl</string>
+			<string>alfred.workflow.input.scriptfilter</string>
 			<key>uid</key>
-			<string>56813BB9-34AD-48C8-837F-706FC98B152F</string>
+			<string>D9F36C8E-1B48-4A33-9D18-EA2F0917F97A</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>./run.sh dispatch "{query}"</string>
+				<key>scriptargtype</key>
+				<integer>0</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>93C5B650-4EE4-4B3B-9B74-ABAA5954CC8F</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>action</key>
+				<integer>0</integer>
+				<key>argument</key>
+				<integer>0</integer>
+				<key>focusedappvariable</key>
+				<string></string>
+				<key>focusedappvariablename</key>
+				<string></string>
+				<key>hotkey</key>
+				<integer>11</integer>
+				<key>hotmod</key>
+				<integer>1835008</integer>
+				<key>hotstring</key>
+				<string>B</string>
+				<key>leftcursor</key>
+				<false/>
+				<key>modsmode</key>
+				<integer>0</integer>
+				<key>relatedAppsMode</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.trigger.hotkey</string>
+			<key>uid</key>
+			<string>C7A87F54-8D30-4C11-BD55-705AC89F7E6E</string>
 			<key>version</key>
 			<integer>1</integer>
 		</dict>
@@ -140,7 +222,7 @@
 		<array>
 			<dict>
 				<key>destinationuid</key>
-				<string>56813BB9-34AD-48C8-837F-706FC98B152F</string>
+				<string>93C5B650-4EE4-4B3B-9B74-ABAA5954CC8F</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -153,7 +235,33 @@
 		<array>
 			<dict>
 				<key>destinationuid</key>
-				<string>56813BB9-34AD-48C8-837F-706FC98B152F</string>
+				<string>93C5B650-4EE4-4B3B-9B74-ABAA5954CC8F</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>D9F36C8E-1B48-4A33-9D18-EA2F0917F97A</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>93C5B650-4EE4-4B3B-9B74-ABAA5954CC8F</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>C7A87F54-8D30-4C11-BD55-705AC89F7E6E</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>A0E2E77A-7F6C-48C4-9718-15F936784705</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -179,13 +287,36 @@
 			<key>ypos</key>
 			<integer>220</integer>
 		</dict>
-		<key>56813BB9-34AD-48C8-837F-706FC98B152F</key>
+		<key>D9F36C8E-1B48-4A33-9D18-EA2F0917F97A</key>
 		<dict>
 			<key>xpos</key>
-			<integer>380</integer>
+			<integer>80</integer>
 			<key>ypos</key>
-			<integer>150</integer>
+			<integer>360</integer>
 		</dict>
+		<key>93C5B650-4EE4-4B3B-9B74-ABAA5954CC8F</key>
+		<dict>
+			<key>xpos</key>
+			<integer>420</integer>
+			<key>ypos</key>
+			<integer>220</integer>
+		</dict>
+		<key>C7A87F54-8D30-4C11-BD55-705AC89F7E6E</key>
+		<dict>
+			<key>xpos</key>
+			<integer>80</integer>
+			<key>ypos</key>
+			<integer>-30</integer>
+		</dict>
+	</dict>
+	<key>variables</key>
+	<dict>
+		<key>BINARY_PATH</key>
+		<string></string>
+		<key>RESULT_LIMIT</key>
+		<string>36</string>
+		<key>FUZZY_LIMIT</key>
+		<string>24</string>
 	</dict>
 	<key>version</key>
 	<string>0.1.0</string>

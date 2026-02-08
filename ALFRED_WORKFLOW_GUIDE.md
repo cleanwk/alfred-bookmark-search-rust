@@ -20,12 +20,26 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 
 - `cb rust`
 - `cb folder:work/project rust`
+- `cbf rsut`
+- `cba`
+
+默认热键：
+
+- `⌃⌥⌘B`：直接触发主搜索（可在 Alfred 中修改）
+
+结果操作：
+
+- `↩` 打开 URL
+- `⌘↩` 复制 URL
+- `⌥` 查看目录信息（不执行）
 
 ## 4. 可选变量
 
 在 workflow Variables 中可设置：
 
 - `BINARY_PATH`: 指定二进制路径
+- `RESULT_LIMIT`: `cb` 默认返回条数（默认 `36`）
+- `FUZZY_LIMIT`: `cbf` 默认返回条数（默认 `24`）
 
 在 shell 中可设置：
 
@@ -39,3 +53,4 @@ export ALFRED_CHROME_BOOKMARKS_PATH="$HOME/Library/Application Support/Arc/Defau
 
 - `Binary not found`: 设置 `BINARY_PATH` 或重新打包 workflow。
 - 无结果: 先运行 `alfred-chrome-bookmarks refresh` 再试。
+- 热键冲突: 在 Alfred Workflow 编辑器中修改 Hotkey Trigger。
