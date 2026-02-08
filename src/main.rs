@@ -41,6 +41,7 @@ const ICON_ACTION_README: &str = "icons/readme.png";
 const ICON_ACTION_GUIDE: &str = "icons/guide.png";
 const ICON_ACTION_FOLDERS: &str = "icons/folder.png";
 const ICON_ACTION_COPY: &str = "icons/copy.png";
+const ICON_BOOKMARK: &str = "icons/bookmark.png";
 
 #[derive(Debug, Deserialize, Serialize)]
 struct IndexCheckState {
@@ -269,17 +270,13 @@ fn handle_search(
     let stdout = io::stdout();
     let mut writer = BufWriter::new(stdout.lock());
 
-    let mut items = Vec::with_capacity(bookmarks.len() + 3);
-
-    if query_str.is_empty() && folder_filters.is_empty() && !fuzzy {
-        items.extend(build_quick_action_items());
-    }
+    let mut items = Vec::with_capacity(bookmarks.len());
 
     for bookmark in bookmarks.iter().take(limit) {
         let domain = extract_domain(&bookmark.url);
         let subtitle = build_subtitle(&bookmark.folder_path, &domain);
         let cmd_subtitle = format!("复制URL: {}", bookmark.url);
-        let opt_subtitle = format!("📂 {}", bookmark.folder_path.as_deref().unwrap_or("未分类"));
+        let opt_subtitle = format!("#{}", bookmark.folder_path.as_deref().unwrap_or("未分类"));
         let open_arg = format!("open:{}", bookmark.url);
         let copy_arg = format!("copy:{}", bookmark.url);
         let item = alfred::ItemBuilder::new(&bookmark.name)
@@ -287,7 +284,7 @@ fn handle_search(
             .arg(open_arg)
             .uid(&bookmark.id)
             .quicklook_url(&bookmark.url)
-            .icon_filetype("public.url")
+            .icon_path(ICON_BOOKMARK)
             .valid(true)
             .modifier(
                 alfred::Modifier::Command,
@@ -446,45 +443,30 @@ fn append_unique_case_insensitive(target: &mut Vec<String>, values: Vec<String>)
 fn workflow_actions() -> Vec<WorkflowAction> {
     vec![
         WorkflowAction {
-            title: "↻ Refresh Index",
+            title: "Refresh Index",
             subtitle: "重新扫描书签并重建索引",
             arg: "action:refresh",
             icon_path: ICON_ACTION_REFRESH,
         },
         WorkflowAction {
-            title: "📊 Show Stats",
+            title: "Show Stats",
             subtitle: "显示当前书签总数",
             arg: "action:stats",
             icon_path: ICON_ACTION_STATS,
         },
         WorkflowAction {
-            title: "📘 Open Workflow Guide",
+            title: "Open Workflow Guide",
             subtitle: "打开本地 ALFRED_WORKFLOW_GUIDE.md",
             arg: "action:open_guide",
             icon_path: ICON_ACTION_GUIDE,
         },
         WorkflowAction {
-            title: "📄 Open README",
+            title: "Open README",
             subtitle: "打开本地 README.md",
             arg: "action:open_readme",
             icon_path: ICON_ACTION_README,
         },
     ]
-}
-
-fn build_quick_action_items() -> Vec<alfred::Item<'static>> {
-    workflow_actions()
-        .into_iter()
-        .take(2)
-        .map(|action| {
-            alfred::ItemBuilder::new(action.title)
-                .subtitle(action.subtitle)
-                .arg(action.arg)
-                .valid(true)
-                .icon_path(action.icon_path)
-                .into_item()
-        })
-        .collect()
 }
 
 fn build_subtitle(folder_path: &Option<String>, domain: &str) -> String {
@@ -502,12 +484,11 @@ fn build_subtitle(folder_path: &Option<String>, domain: &str) -> String {
             .join("/");
 
         if !short_path.is_empty() {
-            parts.push(format!("📂 {}", short_path));
+            parts.push(format!("#{}", short_path));
         }
     }
 
     parts.push(domain.to_string());
-    parts.push("↩ open · ⌘ copy url · ⌥ folder".to_string());
     parts.join("  ·  ")
 }
 
@@ -577,8 +558,8 @@ fn show_info_alfred<'a, T: Into<Cow<'a, str>>>(s: T) {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_quick_action_items, is_index_check_recent, normalize_csv_terms, now_ms,
-        parse_query_and_folder_filters, workflow_actions, IndexCheckState, INDEX_CHECK_STATE_FILE,
+        is_index_check_recent, normalize_csv_terms, now_ms, parse_query_and_folder_filters,
+        workflow_actions, IndexCheckState, INDEX_CHECK_STATE_FILE,
     };
     use tempfile::TempDir;
 
@@ -654,14 +635,6 @@ mod tests {
         assert_eq!(actions.len(), 4);
         assert!(actions.iter().any(|action| action.arg == "action:refresh"));
         assert!(actions.iter().any(|action| action.arg == "action:stats"));
-    }
-
-    #[test]
-    fn empty_query_quick_actions_includes_refresh_and_stats() {
-        let items = build_quick_action_items();
-        assert_eq!(items.len(), 2);
-        assert_eq!(items[0].arg.as_deref(), Some("action:refresh"));
-        assert_eq!(items[1].arg.as_deref(), Some("action:stats"));
     }
 
     #[test]

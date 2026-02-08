@@ -22,6 +22,7 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 - `cb folder:work/project rust`
 - `cbf rsut`
 - `cba`
+- 说明：`cb` 空查询默认只显示书签；`refresh/stats` 等动作请使用 `cba`。
 
 默认热键：
 
