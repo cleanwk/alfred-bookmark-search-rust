@@ -2,6 +2,12 @@
 
 一个极简、极速的 Alfred Workflow：专注于 Chromium 系浏览器书签搜索，支持目录过滤，不再包含 tag 体系。
 
+## 为什么还要再做一个
+
+- Alfred 原生书签能力主要覆盖 Safari/Chrome，且难以满足多 Chromium 浏览器统一检索的需求。
+- 现有方案在我的日常使用里仍有轻微卡顿，无法做到接近无可感知延迟。
+- 这个项目的目标很直接：以本地索引 + FTS5 为核心，主打一个极致的快。
+
 ## 特性
 
 - 极致快：SQLite FTS5 + 本地索引，默认搜索路径尽量走数据库查询。
@@ -32,6 +38,19 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 - `↩` 打开链接
 - `⌘↩` 复制 URL
 - `⌥` 查看目录信息（只读）
+
+## CI 自动打包与发布
+
+仓库内置 GitHub Actions 工作流：`.github/workflows/release.yml`。
+
+- 推送到 `master`：自动打包并发布 `dev` 递增版本（prerelease）。
+- 手动触发（Actions 页面 `Run workflow`）：发布正式 `release` 版本。
+- 两种模式都会产出可直接安装的 `.alfredworkflow` 文件（Release 附件 + Actions Artifact）。
+
+版本规则：
+
+- 自动 `dev`：`${Cargo.toml 版本}-dev.${GITHUB_RUN_NUMBER}`，例如 `0.1.0-dev.42`
+- 手动 `release`：使用输入的 `release_version`，例如 `0.2.0`
 
 ## 搜索语法
 

@@ -14,7 +14,15 @@
 open dist/AlfredChromeBookmarks.alfredworkflow
 ```
 
-## 3. 验证
+## 3. GitHub Actions 自动发布
+
+工作流文件：`.github/workflows/release.yml`
+
+- 推送到 `master`：自动打包并发布递增 `dev` 预发布版本。
+- 手动触发 `Run workflow`：输入 `release_version` 发布正式版本。
+- 两者都会生成可安装的 `.alfredworkflow`（Release 附件和 Actions Artifact）。
+
+## 4. 验证
 
 在 Alfred 中执行：
 
@@ -34,7 +42,7 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 - `⌘↩` 复制 URL
 - `⌥` 查看目录信息（不执行）
 
-## 4. 可选变量
+## 5. 可选变量
 
 在 workflow Variables 中可设置：
 
@@ -55,7 +63,7 @@ export ALFRED_CHROME_BOOKMARKS_BROWSER="dia"
 
 `ALFRED_CHROME_BOOKMARKS_BROWSER` 为空或设为 `all` 时，会恢复自动扫描全部受支持浏览器。
 
-## 5. 常见问题
+## 6. 常见问题
 
 - `Binary not found`: 设置 `BINARY_PATH` 或重新打包 workflow。
 - 无结果: 先运行 `alfred-chrome-bookmarks refresh` 再试。

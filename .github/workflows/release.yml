@@ -1,0 +1,106 @@
+name: Package And Release
+
+on:
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release version (SemVer, e.g. 0.2.0)"
+        required: true
+        type: string
+      run_tests:
+        description: "Run cargo test before packaging"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: macos-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve versions and release channel
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cargo_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' Cargo.toml | head -n1)"
+          if [[ -z "$cargo_version" ]]; then
+            echo "Failed to read version from Cargo.toml" >&2
+            exit 1
+          fi
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            channel="dev"
+            package_version="${cargo_version}-dev.${{ github.run_number }}"
+            tag_name="dev-v${cargo_version}.${{ github.run_number }}"
+            release_name="Dev Build ${package_version}"
+            prerelease="true"
+            run_tests="true"
+          else
+            channel="release"
+            input_version="${{ inputs.release_version }}"
+            clean_version="${input_version#v}"
+            if [[ ! "$clean_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Invalid release_version: $input_version" >&2
+              exit 1
+            fi
+            package_version="$clean_version"
+            tag_name="v${clean_version}"
+            release_name="Release ${clean_version}"
+            prerelease="false"
+            run_tests="${{ inputs.run_tests }}"
+          fi
+
+          package_name="AlfredChromeBookmarks-${package_version}.alfredworkflow"
+          package_path="dist/${package_name}"
+
+          {
+            echo "channel=${channel}"
+            echo "cargo_version=${cargo_version}"
+            echo "package_version=${package_version}"
+            echo "tag_name=${tag_name}"
+            echo "release_name=${release_name}"
+            echo "prerelease=${prerelease}"
+            echo "run_tests=${run_tests}"
+            echo "package_name=${package_name}"
+            echo "package_path=${package_path}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        if: steps.meta.outputs.run_tests == 'true'
+        run: cargo test --all-targets
+
+      - name: Build workflow package
+        run: |
+          ./scripts/build_workflow.sh \
+            --version "${{ steps.meta.outputs.package_version }}" \
+            --output "${{ steps.meta.outputs.package_path }}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.package_name }}
+          path: ${{ steps.meta.outputs.package_path }}
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: ${{ steps.meta.outputs.release_name }}
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: ${{ steps.meta.outputs.package_path }}
