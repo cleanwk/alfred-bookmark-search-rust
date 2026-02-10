@@ -473,18 +473,14 @@ fn build_subtitle(folder_path: &Option<String>, domain: &str) -> String {
     let mut parts = Vec::new();
 
     if let Some(path) = folder_path {
-        let short_path = path
+        let folder_display = path
             .split('/')
-            .rev()
-            .take(2)
+            .filter(|s| !s.is_empty() && *s != "书签栏")
             .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect::<Vec<_>>()
-            .join("/");
+            .join(" · ");
 
-        if !short_path.is_empty() {
-            parts.push(format!("#{}", short_path));
+        if !folder_display.is_empty() {
+            parts.push(folder_display);
         }
     }
 
