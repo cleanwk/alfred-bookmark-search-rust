@@ -475,17 +475,17 @@ fn build_subtitle(folder_path: &Option<String>, domain: &str) -> String {
     if let Some(path) = folder_path {
         let folder_display = path
             .split('/')
-            .filter(|s| !s.is_empty() && *s != "书签栏")
+            .filter(|s| !s.is_empty() && *s != "书签栏" && *s != "Bookmarks Bar")
             .collect::<Vec<_>>()
             .join(" · ");
 
         if !folder_display.is_empty() {
-            parts.push(folder_display);
+            parts.push(format!("📂 {}", folder_display));
         }
     }
 
     parts.push(domain.to_string());
-    parts.join("  ·  ")
+    parts.join(" → ")
 }
 
 fn handle_stats(index: &BookmarkIndex) -> Result<(), Box<dyn std::error::Error>> {
