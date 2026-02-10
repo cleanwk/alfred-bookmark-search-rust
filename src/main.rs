@@ -475,7 +475,7 @@ fn build_subtitle(folder_path: &Option<String>, domain: &str) -> String {
     if let Some(path) = folder_path {
         let folder_display = path
             .split('/')
-            .filter(|s| !s.is_empty())
+            .filter(|s| !s.is_empty() && *s != "书签栏")
             .collect::<Vec<_>>()
             .join(" · ");
 
