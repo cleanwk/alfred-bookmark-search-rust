@@ -480,7 +480,7 @@ fn build_subtitle(folder_path: &Option<String>, domain: &str) -> String {
             .join(" · ");
 
         if !folder_display.is_empty() {
-            parts.push(format!("📂 {}", folder_display));
+            parts.push(folder_display);
         }
     }
 
