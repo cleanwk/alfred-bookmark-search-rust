@@ -15,6 +15,7 @@
 - 目录过滤：支持多级目录匹配（如 `work/project`），并支持内联语法。
 - Alfred 友好：`cb` 普通搜索，`cbf` 模糊搜索，`cba` 动作中心。
 - 更快交互：`cb`/`cbf` 分别使用不同节流延时与默认结果上限。
+- 模糊搜索提速：`cbf` 先用 FTS 预选候选，再做 fuzzy 排序，降低大库卡顿。
 - 主搜索更纯净：空查询时默认只展示书签结果，`refresh/stats` 在 `cba` 动作中心中使用。
 - 默认热键：`⌃⌥⌘B` 触发主搜索（可在 Alfred 中改键）。
 
@@ -51,6 +52,16 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 
 - 自动 `dev`：`${Cargo.toml 版本}-dev.${GITHUB_RUN_NUMBER}`，例如 `0.1.0-dev.42`
 - 手动 `release`：使用输入的 `release_version`，例如 `0.2.0`
+
+
+## 新手 30 秒上手
+
+1. 输入 `cb rust` 做普通搜索。
+2. 输入 `cb #work rust` 做目录 + 关键词组合搜索。
+3. 输入 `cb folder:work/project rust` 做多级目录过滤。
+4. 输错单词时改用 `cbf rsut`（模糊搜索）。
+
+空查询时会给出目录语法示例提示，便于快速上手。
 
 ## 搜索语法
 
@@ -99,6 +110,7 @@ alfred-chrome-bookmarks actions [query...]
 - 目录过滤：在 SQL 侧先做 `LIKE` 过滤，再返回结果。
 - 模糊搜索：仅在 `cbf` 或 `--fuzzy` 时启用（更慢但容错更高）。
 - 书签索引按 fingerprint 增量刷新，避免重复解析。
+- 自动索引提示：当本次搜索触发自动刷新时，会在 Alfred 顶部显示“索引已更新”。
 - 索引检查有 2 秒 TTL，减少连续按键触发时的重复检查。
 - SQLite 使用 `WAL` + `NORMAL` + `mmap` 配置。
 

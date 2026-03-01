@@ -35,6 +35,8 @@ pub enum AppError {
 
 const INDEX_CHECK_TTL_MS: u64 = 2_000;
 const INDEX_CHECK_STATE_FILE: &str = "index_check_state.json";
+const FUZZY_CANDIDATE_LIMIT_MULTIPLIER: usize = 12;
+const FUZZY_CANDIDATE_LIMIT_FLOOR: usize = 200;
 const ICON_ACTION_REFRESH: &str = "icons/refresh.png";
 const ICON_ACTION_STATS: &str = "icons/stats.png";
 const ICON_ACTION_README: &str = "icons/readme.png";
@@ -54,6 +56,13 @@ struct WorkflowAction {
     subtitle: &'static str,
     arg: &'static str,
     icon_path: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IndexEnsureStatus {
+    SkippedRecent,
+    AlreadyFresh,
+    Refreshed,
 }
 
 fn main() {
@@ -97,15 +106,16 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
+    let mut index_status = None;
     if needs_ensure_before_command {
         let bookmarks_path =
             get_chrome_bookmarks_path_cached(&cache_dir).ok_or(AppError::BookmarksNotFound)?;
-        ensure_bookmark_index(
+        index_status = Some(ensure_bookmark_index(
             index.as_ref().expect("index initialized"),
             &bookmark_cache,
             &bookmarks_path,
             &cache_dir,
-        )?;
+        )?);
     }
 
     match opt.cmd {
@@ -120,6 +130,7 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                 folders,
                 fuzzy,
                 limit,
+                index_status,
                 index.as_ref().expect("index initialized"),
             )?;
         }
@@ -156,9 +167,9 @@ fn ensure_bookmark_index(
     cache: &BookmarkCache,
     bookmarks_path: &Path,
     cache_dir: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<IndexEnsureStatus, Box<dyn std::error::Error>> {
     if is_index_check_recent(cache_dir, now_ms()) {
-        return Ok(());
+        return Ok(IndexEnsureStatus::SkippedRecent);
     }
 
     let fingerprint = compute_bookmarks_fingerprint(bookmarks_path)?;
@@ -168,13 +179,13 @@ fn ensure_bookmark_index(
         .map_err(|e| AppError::DatabaseError(e.to_string()))?
     {
         mark_index_checked_recently(cache_dir);
-        return Ok(());
+        return Ok(IndexEnsureStatus::AlreadyFresh);
     }
 
     refresh_bookmark_index(index, cache, bookmarks_path)?;
     mark_index_checked_recently(cache_dir);
 
-    Ok(())
+    Ok(IndexEnsureStatus::Refreshed)
 }
 
 fn refresh_bookmark_index(
@@ -199,6 +210,7 @@ fn handle_search(
     folders: Option<String>,
     fuzzy: bool,
     limit: usize,
+    index_status: Option<IndexEnsureStatus>,
     index: &BookmarkIndex,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let searcher = BookmarkSearcher::new();
@@ -231,11 +243,49 @@ fn handle_search(
         };
 
     let bookmarks = if fuzzy {
-        let all = index
-            .load_all_bookmarks()
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let candidate_limit = std::cmp::max(
+            limit.saturating_mul(FUZZY_CANDIDATE_LIMIT_MULTIPLIER),
+            FUZZY_CANDIDATE_LIMIT_FLOOR,
+        );
+
+        let candidates = if query_str.is_empty() {
+            if folder_filters.is_empty() {
+                index
+                    .list_bookmarks(candidate_limit)
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            } else {
+                index
+                    .list_bookmarks_by_folder_filters(&folder_filters, candidate_limit)
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            }
+        } else if folder_filters.is_empty() {
+            match index
+                .search_bookmark_candidates_fts(&query_str, candidate_limit)
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            {
+                Some(results) => results,
+                None => index
+                    .load_all_bookmarks()
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?,
+            }
+        } else {
+            match index
+                .search_bookmark_candidates_fts_with_folders(
+                    &query_str,
+                    &folder_filters,
+                    candidate_limit,
+                )
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            {
+                Some(results) => results,
+                None => index
+                    .load_all_bookmarks()
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?,
+            }
+        };
+
         searcher
-            .search(&all, &query_str, &folder_filters, true, limit)
+            .search(&candidates, &query_str, &folder_filters, true, limit)
             .into_iter()
             .map(|item| item.bookmark)
             .collect()
@@ -305,6 +355,38 @@ fn handle_search(
             .into_item();
 
         items.push(item);
+    }
+
+    if matches!(index_status, Some(IndexEnsureStatus::Refreshed)) {
+        items.insert(
+            0,
+            alfred::ItemBuilder::new("索引已更新")
+                .subtitle("已自动刷新书签索引，当前结果为最新")
+                .valid(false)
+                .icon_path(ICON_ACTION_REFRESH)
+                .into_item(),
+        );
+    }
+
+    if query_str.is_empty() && folder_filters.is_empty() {
+        items.push(
+            alfred::ItemBuilder::new("试试目录过滤：#work rust")
+                .subtitle("使用 #目录 语法快速过滤目录并搜索")
+                .arg("#work rust")
+                .autocomplete("#work rust")
+                .valid(false)
+                .icon_path(ICON_ACTION_FOLDERS)
+                .into_item(),
+        );
+        items.push(
+            alfred::ItemBuilder::new("试试内联过滤：folder:work/project rust")
+                .subtitle("支持 folder:/dir:/path:/in: 前缀")
+                .arg("folder:work/project rust")
+                .autocomplete("folder:work/project rust")
+                .valid(false)
+                .icon_path(ICON_ACTION_GUIDE)
+                .into_item(),
+        );
     }
 
     let empty_subtitle = if folder_filters.is_empty() {

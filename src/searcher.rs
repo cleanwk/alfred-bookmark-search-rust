@@ -50,7 +50,6 @@ impl BookmarkSearcher {
             score: i64,
             folder_depth: usize,
             idx: usize,
-            bookmark: ChromeBookmark,
         }
 
         impl PartialEq for HeapItem {
@@ -102,7 +101,6 @@ impl BookmarkSearcher {
                 score,
                 folder_depth: bookmark_folder_depth(bookmark),
                 idx,
-                bookmark: bookmark.clone(),
             };
 
             if heap.len() < limit {
@@ -134,7 +132,7 @@ impl BookmarkSearcher {
         items
             .into_iter()
             .map(|item| SearchResult {
-                bookmark: item.bookmark,
+                bookmark: bookmarks[item.idx].clone(),
             })
             .collect()
     }
