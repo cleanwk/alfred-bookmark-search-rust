@@ -42,6 +42,11 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 - `⌘↩` 复制 URL
 - `⌥` 查看目录信息（不执行）
 
+空查询引导：
+
+- 在 `cb` 空查询时会显示目录语法建议（例如 `#work rust`、`folder:work/project rust`）。
+- 当搜索期间自动刷新索引时，结果顶部会显示“索引已更新”。
+
 ## 5. 可选变量
 
 在 workflow Variables 中可设置：

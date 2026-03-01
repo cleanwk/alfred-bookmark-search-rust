@@ -222,6 +222,23 @@ impl BookmarkIndex {
         rows.collect::<Result<Vec<_>>>()
     }
 
+    pub fn search_bookmark_candidates_fts(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Option<Vec<ChromeBookmark>>> {
+        self.search_bookmarks_fts(query, limit)
+    }
+
+    pub fn search_bookmark_candidates_fts_with_folders(
+        &self,
+        query: &str,
+        folder_filters: &[String],
+        limit: usize,
+    ) -> Result<Option<Vec<ChromeBookmark>>> {
+        self.search_bookmarks_fts_with_folders(query, folder_filters, limit)
+    }
+
     pub fn search_bookmarks_fts(
         &self,
         query: &str,
