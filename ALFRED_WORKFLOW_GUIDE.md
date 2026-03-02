@@ -54,7 +54,7 @@ open dist/AlfredChromeBookmarks.alfredworkflow
 - `BINARY_PATH`: 指定二进制路径
 - `RESULT_LIMIT`: `cb` 默认返回条数（默认 `36`）
 - `FUZZY_LIMIT`: `cbf` 默认返回条数（默认 `24`）
-- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 指定只搜索某个浏览器（如 `chrome` / `dia` / `arc`）
+- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 指定只搜索某个浏览器（如 `chrome` / `dia` / `arc` / `firefox` / `zen`）
 
 在 shell 中可设置：
 

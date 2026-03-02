@@ -1,17 +1,17 @@
 # Alfred Chromium Bookmarks
 
-一个极简、极速的 Alfred Workflow：专注于 Chromium 系浏览器书签搜索，支持目录过滤，不再包含 tag 体系。
+一个极简、极速的 Alfred Workflow：专注于本地浏览器书签搜索（Chromium + Firefox 系），支持目录过滤，不再包含 tag 体系。
 
 ## 为什么还要再做一个
 
-- Alfred 原生书签能力主要覆盖 Safari/Chrome，且难以满足多 Chromium 浏览器统一检索的需求。
+- Alfred 原生书签能力主要覆盖 Safari/Chrome，且难以满足多浏览器（Chromium + Firefox 系）统一检索的需求。
 - 现有方案在我的日常使用里仍有轻微卡顿，无法做到接近无可感知延迟。
 - 这个项目的目标很直接：以本地索引 + FTS5 为核心，主打一个极致的快。
 
 ## 特性
 
 - 极致快：SQLite FTS5 + 本地索引，默认搜索路径尽量走数据库查询。
-- 多浏览器支持：Chrome、Arc、Dia、Brave、Edge、Vivaldi、Chromium、Opera 等。
+- 多浏览器支持：Chrome、Arc、Dia、Brave、Edge、Vivaldi、Chromium、Opera、Firefox、Zen 等。
 - 目录过滤：支持多级目录匹配（如 `work/project`），并支持内联语法。
 - Alfred 友好：`cb` 普通搜索，`cbf` 模糊搜索，`cba` 动作中心。
 - 更快交互：`cb`/`cbf` 分别使用不同节流延时与默认结果上限。
@@ -117,7 +117,7 @@ alfred-chrome-bookmarks actions [query...]
 ## 环境变量
 
 - `ALFRED_CHROME_BOOKMARKS_PATH`: 强制指定书签文件路径。
-- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 指定浏览器来源（例如 `chrome` / `dia` / `arc`）。
+- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 指定浏览器来源（例如 `chrome` / `dia` / `arc` / `firefox` / `zen`）。
 - `alfred_workflow_data`: Alfred 数据目录（自动使用）。
 - `alfred_workflow_cache`: Alfred 缓存目录（自动使用）。
 
@@ -139,7 +139,7 @@ export ALFRED_CHROME_BOOKMARKS_BROWSER="dia"
 ```
 
 `ALFRED_CHROME_BOOKMARKS_BROWSER` 支持值（含常见别名）：
-`chrome` `brave` `edge` `chromium` `vivaldi` `arc` `dia` `opera` `opera-developer` `opera-next` `opera-gx` `sidekick`
+`chrome` `brave` `edge` `chromium` `vivaldi` `arc` `dia` `opera` `opera-developer` `opera-next` `opera-gx` `sidekick` `firefox` `zen`
 
 ## 打包脚本
 
