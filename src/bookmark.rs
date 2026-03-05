@@ -196,19 +196,31 @@ impl ChromeBookmarks {
         Ok(bookmarks)
     }
 
-    /// 提取所有书签（平铺结构）
+    /// Extract all bookmarks into a flat list
     pub fn extract_all_bookmarks(&self) -> Vec<ChromeBookmark> {
         let mut bookmarks = Vec::new();
 
-        // 处理书签栏
-        self.extract_from_node(&self.roots.bookmark_bar, "书签栏", &mut bookmarks);
+        let bar_name = if self.roots.bookmark_bar.name.is_empty() {
+            "Bookmarks Bar"
+        } else {
+            &self.roots.bookmark_bar.name
+        };
+        self.extract_from_node(&self.roots.bookmark_bar, bar_name, &mut bookmarks);
 
-        // 处理其他书签
-        self.extract_from_node(&self.roots.other, "其他书签", &mut bookmarks);
+        let other_name = if self.roots.other.name.is_empty() {
+            "Other Bookmarks"
+        } else {
+            &self.roots.other.name
+        };
+        self.extract_from_node(&self.roots.other, other_name, &mut bookmarks);
 
-        // 处理同步书签
         if let Some(ref synced) = self.roots.synced {
-            self.extract_from_node(synced, "同步书签", &mut bookmarks);
+            let synced_name = if synced.name.is_empty() {
+                "Synced Bookmarks"
+            } else {
+                &synced.name
+            };
+            self.extract_from_node(synced, synced_name, &mut bookmarks);
         }
 
         bookmarks
@@ -656,11 +668,11 @@ fn load_firefox_bookmarks(path: &Path) -> Result<Vec<ChromeBookmark>, Box<dyn st
 
 fn firefox_root_display_name(root_name: &str) -> &'static str {
     match root_name {
-        "toolbar" => "书签工具栏",
-        "menu" => "书签菜单",
-        "unfiled" => "其他书签",
-        "mobile" => "移动书签",
-        _ => "Firefox书签",
+        "toolbar" => "Bookmarks Toolbar",
+        "menu" => "Bookmarks Menu",
+        "unfiled" => "Other Bookmarks",
+        "mobile" => "Mobile Bookmarks",
+        _ => "Firefox Bookmarks",
     }
 }
 
@@ -694,7 +706,7 @@ fn firefox_folder_path(
     }
 
     if segments.is_empty() {
-        return "Firefox书签".to_string();
+        return "Firefox Bookmarks".to_string();
     }
 
     segments.reverse();
@@ -942,11 +954,11 @@ mod tests {
         let nested = bookmarks.iter().find(|b| b.id == "12").unwrap();
         assert_eq!(
             nested.folder_path.as_deref(),
-            Some("书签栏/Bookmark Bar/Sub")
+            Some("Bookmark Bar/Bookmark Bar/Sub")
         );
         assert_eq!(
             nested.folder_path_lower.as_deref(),
-            Some("书签栏/bookmark bar/sub")
+            Some("bookmark bar/bookmark bar/sub")
         );
     }
 
@@ -1116,7 +1128,7 @@ mod tests {
         assert_eq!(bookmarks.len(), 1);
         let bookmark = &bookmarks[0];
         assert_eq!(bookmark.name, "Example");
-        assert_eq!(bookmark.folder_path.as_deref(), Some("书签工具栏/work"));
+        assert_eq!(bookmark.folder_path.as_deref(), Some("Bookmarks Toolbar/work"));
     }
 
     #[test]

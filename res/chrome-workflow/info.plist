@@ -9,9 +9,9 @@
 	<key>createdby</key>
 	<string>cleanwk</string>
 	<key>description</key>
-	<string>Search Chromium bookmarks with folder filters, hotkey entry, and action center.</string>
+	<string>Ultra-fast browser bookmark search with folder filters. Supports Chrome, Edge, Brave, Arc, Firefox, and more.</string>
 	<key>name</key>
-	<string>Chromium Bookmarks (Fast)</string>
+	<string>Browser Bookmarks</string>
 	<key>objects</key>
 	<array>
 		<dict>
@@ -30,7 +30,7 @@
 				<key>escaping</key>
 				<integer>127</integer>
 				<key>keyword</key>
-				<string>cb</string>
+				<string>bms</string>
 				<key>queuedelaycustom</key>
 				<real>0.06</real>
 				<key>queuedelayimmediatelyinitially</key>
@@ -42,7 +42,7 @@
 				<key>runningsubtext</key>
 				<string>Searching bookmarks…</string>
 				<key>script</key>
-				<string>./run.sh search --limit "${RESULT_LIMIT:-36}" "$1"</string>
+				<string>./run.sh search --limit "${RESULT_LIMIT:-36}" -- "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
@@ -50,7 +50,7 @@
 				<key>subtext</key>
 				<string>Type to search bookmarks (try #work rust)</string>
 				<key>title</key>
-				<string>Chromium Bookmarks</string>
+				<string>Browser Bookmarks</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -79,7 +79,7 @@
 				<key>escaping</key>
 				<integer>127</integer>
 				<key>keyword</key>
-				<string>cbf</string>
+				<string>bmf</string>
 				<key>queuedelaycustom</key>
 				<real>0.12</real>
 				<key>queuedelayimmediatelyinitially</key>
@@ -91,15 +91,15 @@
 				<key>runningsubtext</key>
 				<string>Fuzzy searching bookmarks…</string>
 				<key>script</key>
-				<string>./run.sh search --fuzzy --limit "${FUZZY_LIMIT:-24}" "$1"</string>
+				<string>./run.sh search --fuzzy --limit "${FUZZY_LIMIT:-24}" -- "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
 				<string></string>
 				<key>subtext</key>
-				<string>Fuzzy search (slower)</string>
+				<string>Fuzzy search (typo-tolerant, slower)</string>
 				<key>title</key>
-				<string>Chromium Bookmarks (Fuzzy)</string>
+				<string>Browser Bookmarks (Fuzzy)</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -128,7 +128,7 @@
 				<key>escaping</key>
 				<integer>127</integer>
 				<key>keyword</key>
-				<string>cba</string>
+				<string>bma</string>
 				<key>queuedelaycustom</key>
 				<real>0.05</real>
 				<key>queuedelayimmediatelyinitially</key>
@@ -148,7 +148,7 @@
 				<key>subtext</key>
 				<string>Workflow actions: refresh, stats, docs</string>
 				<key>title</key>
-				<string>Chromium Bookmarks Actions</string>
+				<string>Browser Bookmarks Actions</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -323,6 +323,6 @@
 	<key>version</key>
 	<string>0.1.0</string>
 	<key>webaddress</key>
-	<string>https://github.com/cleanwk/alfred-pinboard-rs</string>
+	<string>https://github.com/cleanwk/alfred-bookmark-search-rust</string>
 </dict>
 </plist>

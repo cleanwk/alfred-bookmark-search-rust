@@ -47,7 +47,7 @@ run_binary() {
 notify_user() {
   local message="${1:-Done}"
   local safe_message="${message//\"/\\\"}"
-  osascript -e "display notification \"$safe_message\" with title \"Chromium Bookmarks\"" >/dev/null 2>&1 || true
+  osascript -e "display notification \"$safe_message\" with title \"Browser Bookmarks\"" >/dev/null 2>&1 || true
 }
 
 extract_subtitle_from_json() {

@@ -6,7 +6,7 @@ use std::process;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
+use clap::Parser;
 use thiserror::Error;
 
 mod bookmark;
@@ -23,13 +23,13 @@ use crate::searcher::BookmarkSearcher;
 
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("未找到受支持浏览器的书签文件")]
+    #[error("No supported browser bookmarks found")]
     BookmarksNotFound,
-    #[error("读取书签失败: {0}")]
+    #[error("Failed to read bookmarks: {0}")]
     BookmarksReadError(String),
-    #[error("索引数据库错误: {0}")]
+    #[error("Index database error: {0}")]
     DatabaseError(String),
-    #[error("其他错误: {0}")]
+    #[error("Error: {0}")]
     Other(String),
 }
 
@@ -66,7 +66,7 @@ enum IndexEnsureStatus {
 }
 
 fn main() {
-    let opt: Opt = Opt::from_args();
+    let opt: Opt = Opt::parse();
 
     if let Err(e) = run(opt) {
         show_error_alfred(e.to_string());
@@ -79,7 +79,7 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
         std::path::PathBuf::from(dir)
     } else {
         dirs::home_dir()
-            .ok_or_else(|| AppError::Other("无法获取home目录".to_string()))?
+            .ok_or_else(|| AppError::Other("Cannot determine home directory".to_string()))?
             .join(".alfred-chrome-bookmarks")
     };
 
@@ -149,7 +149,7 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                 &bookmarks_path,
             )?;
             mark_index_checked_recently(&cache_dir);
-            show_info_alfred("浏览器书签缓存与索引已刷新");
+            show_info_alfred("Bookmark cache and index refreshed");
         }
         SubCommand::Stats => {
             handle_stats(index.as_ref().expect("index initialized"))?;
@@ -325,14 +325,14 @@ fn handle_search(
     for bookmark in bookmarks.iter().take(limit) {
         let domain = extract_domain(&bookmark.url);
         let subtitle = build_subtitle(&bookmark.folder_path, &domain);
-        let cmd_subtitle = format!("复制URL: {}", bookmark.url);
-        let opt_subtitle = format!("#{}", bookmark.folder_path.as_deref().unwrap_or("未分类"));
+        let cmd_subtitle = format!("Copy URL: {}", bookmark.url);
+        let opt_subtitle = bookmark.url.clone();
         let open_arg = format!("open:{}", bookmark.url);
         let copy_arg = format!("copy:{}", bookmark.url);
+        let large_type_text = format!("{}\n{}", bookmark.name, bookmark.url);
         let item = alfred::ItemBuilder::new(&bookmark.name)
             .subtitle(subtitle)
             .arg(open_arg)
-            .uid(&bookmark.id)
             .quicklook_url(&bookmark.url)
             .icon_path(ICON_BOOKMARK)
             .valid(true)
@@ -348,10 +348,10 @@ fn handle_search(
                 Some(opt_subtitle),
                 None::<&str>,
                 false,
-                Some(alfred::Icon::Path(Cow::Borrowed(ICON_ACTION_FOLDERS))),
+                None::<alfred::Icon>,
             )
             .text_copy(&bookmark.url)
-            .text_large_type(&bookmark.name)
+            .text_large_type(large_type_text)
             .into_item();
 
         items.push(item);
@@ -360,8 +360,8 @@ fn handle_search(
     if matches!(index_status, Some(IndexEnsureStatus::Refreshed)) {
         items.insert(
             0,
-            alfred::ItemBuilder::new("索引已更新")
-                .subtitle("已自动刷新书签索引，当前结果为最新")
+            alfred::ItemBuilder::new("Index Updated")
+                .subtitle("Bookmark index auto-refreshed, results are up to date")
                 .valid(false)
                 .icon_path(ICON_ACTION_REFRESH)
                 .into_item(),
@@ -370,8 +370,8 @@ fn handle_search(
 
     if query_str.is_empty() && folder_filters.is_empty() {
         items.push(
-            alfred::ItemBuilder::new("试试目录过滤：#work rust")
-                .subtitle("使用 #目录 语法快速过滤目录并搜索")
+            alfred::ItemBuilder::new("Tip: Try folder filter — #work rust")
+                .subtitle("Use #folder syntax to filter by folder and search")
                 .arg("#work rust")
                 .autocomplete("#work rust")
                 .valid(false)
@@ -379,8 +379,8 @@ fn handle_search(
                 .into_item(),
         );
         items.push(
-            alfred::ItemBuilder::new("试试内联过滤：folder:work/project rust")
-                .subtitle("支持 folder:/dir:/path:/in: 前缀")
+            alfred::ItemBuilder::new("Tip: Try inline filter — folder:work/project rust")
+                .subtitle("Supports folder: / dir: / path: / in: prefixes")
                 .arg("folder:work/project rust")
                 .autocomplete("folder:work/project rust")
                 .valid(false)
@@ -390,17 +390,17 @@ fn handle_search(
     }
 
     let empty_subtitle = if folder_filters.is_empty() {
-        "尝试使用不同的关键词".to_string()
+        "Try different keywords".to_string()
     } else {
         format!(
-            "当前目录过滤: {} | 尝试使用不同关键词",
+            "Folder filter: {} · Try different keywords",
             folder_filters.join(", ")
         )
     };
 
     if items.is_empty() {
         items.push(
-            alfred::ItemBuilder::new("未找到书签")
+            alfred::ItemBuilder::new("No Bookmarks Found")
                 .subtitle(&empty_subtitle)
                 .valid(false)
                 .into_item(),
@@ -526,48 +526,67 @@ fn workflow_actions() -> Vec<WorkflowAction> {
     vec![
         WorkflowAction {
             title: "Refresh Index",
-            subtitle: "重新扫描书签并重建索引",
+            subtitle: "Rescan bookmarks and rebuild search index",
             arg: "action:refresh",
             icon_path: ICON_ACTION_REFRESH,
         },
         WorkflowAction {
             title: "Show Stats",
-            subtitle: "显示当前书签总数",
+            subtitle: "Show total bookmark count",
             arg: "action:stats",
             icon_path: ICON_ACTION_STATS,
         },
         WorkflowAction {
             title: "Open Workflow Guide",
-            subtitle: "打开本地 ALFRED_WORKFLOW_GUIDE.md",
+            subtitle: "Open local ALFRED_WORKFLOW_GUIDE.md",
             arg: "action:open_guide",
             icon_path: ICON_ACTION_GUIDE,
         },
         WorkflowAction {
             title: "Open README",
-            subtitle: "打开本地 README.md",
+            subtitle: "Open local README.md",
             arg: "action:open_readme",
             icon_path: ICON_ACTION_README,
         },
     ]
 }
 
+/// Root folder names to filter from subtitle display (both Chinese and English variants)
+const FILTERED_ROOT_FOLDERS: &[&str] = &[
+    "书签栏",
+    "Bookmarks Bar",
+    "其他书签",
+    "Other Bookmarks",
+    "书签工具栏",
+    "Bookmarks Toolbar",
+    "书签菜单",
+    "Bookmarks Menu",
+    "同步书签",
+    "Synced Bookmarks",
+    "移动书签",
+    "Mobile Bookmarks",
+    "Firefox书签",
+    "Firefox Bookmarks",
+];
+
 fn build_subtitle(folder_path: &Option<String>, domain: &str) -> String {
     let mut parts = Vec::new();
+
+    parts.push(domain.to_string());
 
     if let Some(path) = folder_path {
         let folder_display = path
             .split('/')
-            .filter(|s| !s.is_empty() && *s != "书签栏" && *s != "Bookmarks Bar")
+            .filter(|s| !s.is_empty() && !FILTERED_ROOT_FOLDERS.contains(s))
             .collect::<Vec<_>>()
-            .join(" · ");
+            .join(" / ");
 
         if !folder_display.is_empty() {
             parts.push(folder_display);
         }
     }
 
-    parts.push(domain.to_string());
-    parts.join(" → ")
+    parts.join(" · ")
 }
 
 fn handle_stats(index: &BookmarkIndex) -> Result<(), Box<dyn std::error::Error>> {
@@ -575,7 +594,7 @@ fn handle_stats(index: &BookmarkIndex) -> Result<(), Box<dyn std::error::Error>>
         .get_total_bookmarks()
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    show_info_alfred(format!("书签总数: {}", total_bookmarks));
+    show_info_alfred(format!("Total bookmarks: {}", total_bookmarks));
     Ok(())
 }
 
@@ -604,8 +623,8 @@ fn handle_actions(query: Vec<String>) -> Result<(), Box<dyn std::error::Error>> 
 
     if items.is_empty() {
         items.push(
-            alfred::ItemBuilder::new("未找到动作")
-                .subtitle("尝试输入 refresh / stats / guide / readme")
+            alfred::ItemBuilder::new("No Actions Found")
+                .subtitle("Try: refresh / stats / guide / readme")
                 .valid(false)
                 .into_item(),
         );
@@ -616,7 +635,7 @@ fn handle_actions(query: Vec<String>) -> Result<(), Box<dyn std::error::Error>> 
 }
 
 fn show_error_alfred<'a, T: Into<Cow<'a, str>>>(s: T) {
-    let item = alfred::ItemBuilder::new("✗ 操作失败")
+    let item = alfred::ItemBuilder::new("Error")
         .subtitle(s)
         .icon_path("icons/error.png")
         .valid(false)
@@ -625,7 +644,7 @@ fn show_error_alfred<'a, T: Into<Cow<'a, str>>>(s: T) {
 }
 
 fn show_info_alfred<'a, T: Into<Cow<'a, str>>>(s: T) {
-    let item = alfred::ItemBuilder::new("✓ 操作完成")
+    let item = alfred::ItemBuilder::new("Done")
         .subtitle(s)
         .icon_path("icons/info.png")
         .valid(false)

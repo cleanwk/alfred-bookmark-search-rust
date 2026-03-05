@@ -1,159 +1,90 @@
-# Alfred Chromium Bookmarks
+# Browser Bookmarks
 
-一个极简、极速的 Alfred Workflow：专注于本地浏览器书签搜索（Chromium + Firefox 系），支持目录过滤，不再包含 tag 体系。
+Ultra-fast Alfred workflow for searching local browser bookmarks. Built with Rust and SQLite FTS5.
 
-## 为什么还要再做一个
+## Usage
 
-- Alfred 原生书签能力主要覆盖 Safari/Chrome，且难以满足多浏览器（Chromium + Firefox 系）统一检索的需求。
-- 现有方案在我的日常使用里仍有轻微卡顿，无法做到接近无可感知延迟。
-- 这个项目的目标很直接：以本地索引 + FTS5 为核心，主打一个极致的快。
+Search your browser bookmarks via the `bms` keyword.
 
-## 特性
+* <kbd>↩︎</kbd> Open bookmark in default browser
+* <kbd>⌘</kbd><kbd>↩︎</kbd> Copy URL to clipboard
+* <kbd>⌥</kbd><kbd>↩︎</kbd> Preview full URL
+* <kbd>⌘</kbd><kbd>Y</kbd> Quick Look bookmark URL
 
-- 极致快：SQLite FTS5 + 本地索引，默认搜索路径尽量走数据库查询。
-- 多浏览器支持：Chrome、Arc、Dia、Brave、Edge、Vivaldi、Chromium、Opera、Firefox、Zen 等。
-- 目录过滤：支持多级目录匹配（如 `work/project`），并支持内联语法。
-- Alfred 友好：`cb` 普通搜索，`cbf` 模糊搜索，`cba` 动作中心。
-- 更快交互：`cb`/`cbf` 分别使用不同节流延时与默认结果上限。
-- 模糊搜索提速：`cbf` 先用 FTS 预选候选，再做 fuzzy 排序，降低大库卡顿。
-- 主搜索更纯净：空查询时默认只展示书签结果，`refresh/stats` 在 `cba` 动作中心中使用。
-- 默认热键：`⌃⌥⌘B` 触发主搜索（可在 Alfred 中改键）。
+### Folder Filtering
 
-## 从源码到可用 Workflow
+Filter by bookmark folder using `#folder` or `folder:path` syntax.
+
+```
+bms #work rust
+bms folder:work/project rust
+bms in:research/ai transformer
+```
+
+Multiple folder filters can be combined:
+
+```
+bms #work #docs rust
+```
+
+### Fuzzy Search
+
+Search with typo tolerance via the `bmf` keyword.
+
+```
+bmf rsut
+```
+
+### Actions
+
+Manage the workflow via the `bma` keyword.
+
+* **Refresh Index** — Rescan bookmarks and rebuild search index
+* **Show Stats** — Display total bookmark count
+* **Open Workflow Guide** — View local setup guide
+* **Open README** — View this file
+
+### Hotkey
+
+Default: <kbd>⌃</kbd><kbd>⌥</kbd><kbd>⌘</kbd><kbd>B</kbd> — opens the `bms` search (configurable in Alfred).
+
+## Configuration
+
+Configure options in the [Workflow's Configuration](https://www.alfredapp.com/help/workflows/user-configuration/):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ALFRED_CHROME_BOOKMARKS_BROWSER` | *(auto-detect)* | Restrict to a specific browser |
+| `RESULT_LIMIT` | `36` | Max results for exact search (`bms`) |
+| `FUZZY_LIMIT` | `24` | Max results for fuzzy search (`bmf`) |
+| `BINARY_PATH` | *(auto)* | Override path to the binary |
+
+### Supported Browsers
+
+**Chromium-based:** Chrome, Brave, Edge, Arc, Dia, Vivaldi, Opera, Sidekick, Chromium
+
+**Firefox-based:** Firefox, Zen
+
+Browser value examples: `chrome`, `brave`, `edge`, `arc`, `dia`, `firefox`, `zen`, `opera`, `vivaldi`, `sidekick`
+
+## Building from Source
 
 ```bash
-git clone <your-repo-url>
-cd alfred-pinboard-rs
-./scripts/bootstrap_workflow.sh -- --version 0.1.0
+git clone https://github.com/cleanwk/alfred-bookmark-search-rust.git
+cd alfred-bookmark-search-rust
+./scripts/build_workflow.sh --version 0.2.0
 open dist/AlfredChromeBookmarks.alfredworkflow
 ```
 
-安装后在 Alfred 输入：
+## Performance
 
-- `cb rust`
-- `cb folder:work/project rust`
-- `cba`
+- **FTS5 full-text search** with BM25 relevance ranking
+- **Incremental indexing** — only re-indexes when bookmarks change (fingerprint-based)
+- **2-second TTL** on index checks to avoid redundant work during rapid typing
+- **SQLite WAL mode** with memory-mapped I/O for maximum read throughput
+- **Fuzzy pre-selection** — FTS5 narrows candidates before fuzzy ranking
 
-主搜索结果支持：
-
-- `↩` 打开链接
-- `⌘↩` 复制 URL
-- `⌥` 查看目录信息（只读）
-
-## CI 自动打包与发布
-
-仓库内置 GitHub Actions 工作流：`.github/workflows/release.yml`。
-
-- 推送到 `master`：自动打包并发布 `dev` 递增版本（prerelease）。
-- 手动触发（Actions 页面 `Run workflow`）：发布正式 `release` 版本。
-- 两种模式都会产出可直接安装的 `.alfredworkflow` 文件（Release 附件 + Actions Artifact）。
-
-版本规则：
-
-- 自动 `dev`：`${Cargo.toml 版本}-dev.${GITHUB_RUN_NUMBER}`，例如 `0.1.0-dev.42`
-- 手动 `release`：使用输入的 `release_version`，例如 `0.2.0`
-
-
-## 新手 30 秒上手
-
-1. 输入 `cb rust` 做普通搜索。
-2. 输入 `cb #work rust` 做目录 + 关键词组合搜索。
-3. 输入 `cb folder:work/project rust` 做多级目录过滤。
-4. 输错单词时改用 `cbf rsut`（模糊搜索）。
-
-空查询时会给出目录语法示例提示，便于快速上手。
-
-## 搜索语法
-
-### 1. 普通搜索
-
-```bash
-alfred-chrome-bookmarks search rust async
-```
-
-### 2. 目录过滤参数
-
-```bash
-alfred-chrome-bookmarks search --folders "work/project" rust
-```
-
-### 3. 内联目录过滤（推荐）
-
-支持前缀：`folder:` `dir:` `path:` `in:`
-
-```bash
-alfred-chrome-bookmarks search "rust folder:work/project"
-alfred-chrome-bookmarks search "in:research/ai transformer"
-```
-
-### 4. `#` 目录关键字（新增）
-
-`#` 开头的词会被当作目录过滤词，支持多个组合，并可与普通关键词混合：
-
-```bash
-alfred-chrome-bookmarks search "#work #project rust"
-alfred-chrome-bookmarks search "tokio #backend #docs async"
-```
-
-## 命令
-
-```bash
-alfred-chrome-bookmarks search [--folders ...] [--fuzzy] [--limit N] <query...>
-alfred-chrome-bookmarks refresh
-alfred-chrome-bookmarks stats
-alfred-chrome-bookmarks actions [query...]
-```
-
-## 速度优化点
-
-- 默认 `search`：优先 FTS5 查询（避免全量扫描）。
-- 目录过滤：在 SQL 侧先做 `LIKE` 过滤，再返回结果。
-- 模糊搜索：仅在 `cbf` 或 `--fuzzy` 时启用（更慢但容错更高）。
-- 书签索引按 fingerprint 增量刷新，避免重复解析。
-- 自动索引提示：当本次搜索触发自动刷新时，会在 Alfred 顶部显示“索引已更新”。
-- 索引检查有 2 秒 TTL，减少连续按键触发时的重复检查。
-- SQLite 使用 `WAL` + `NORMAL` + `mmap` 配置。
-
-## 环境变量
-
-- `ALFRED_CHROME_BOOKMARKS_PATH`: 强制指定书签文件路径。
-- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 指定浏览器来源（例如 `chrome` / `dia` / `arc` / `firefox` / `zen`）。
-- `alfred_workflow_data`: Alfred 数据目录（自动使用）。
-- `alfred_workflow_cache`: Alfred 缓存目录（自动使用）。
-
-优先级：`ALFRED_CHROME_BOOKMARKS_PATH` > `ALFRED_CHROME_BOOKMARKS_BROWSER` > 自动扫描全部受支持浏览器。
-当 `ALFRED_CHROME_BOOKMARKS_BROWSER` 为空或为 `all` 时，等价于自动扫描。
-
-## Alfred Workflow Variables
-
-- `BINARY_PATH`: 手动指定二进制路径（可选）。
-- `RESULT_LIMIT`: `cb` 默认结果上限（默认 `36`）。
-- `FUZZY_LIMIT`: `cbf` 默认结果上限（默认 `24`）。
-- `ALFRED_CHROME_BOOKMARKS_BROWSER`: 只搜索指定浏览器（建议在 Alfred 里配置）。
-
-示例：
-
-```bash
-export ALFRED_CHROME_BOOKMARKS_PATH="$HOME/Library/Application Support/Arc/Default/Bookmarks"
-export ALFRED_CHROME_BOOKMARKS_BROWSER="dia"
-```
-
-`ALFRED_CHROME_BOOKMARKS_BROWSER` 支持值（含常见别名）：
-`chrome` `brave` `edge` `chromium` `vivaldi` `arc` `dia` `opera` `opera-developer` `opera-next` `opera-gx` `sidekick` `firefox` `zen`
-
-## 打包脚本
-
-```bash
-./scripts/build_workflow.sh --version 0.1.0
-```
-
-兼容入口：
-
-```bash
-./create_alfred_workflow.sh --version 0.1.0
-```
-
-## 测试
+## Testing
 
 ```bash
 cargo test

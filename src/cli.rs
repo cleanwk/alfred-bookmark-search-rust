@@ -1,45 +1,45 @@
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "alfred-chrome-bookmarks")]
+#[derive(Parser, Debug)]
+#[command(name = "alfred-chrome-bookmarks")]
 pub struct Opt {
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     pub cmd: SubCommand,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub enum SubCommand {
-    /// 搜索书签
-    #[structopt(name = "search", alias = "s")]
+    /// Search bookmarks
+    #[command(alias = "s")]
     Search {
-        /// 搜索关键词
+        /// Search keywords
         query: Vec<String>,
 
-        /// 按目录过滤（逗号分隔，支持多级目录，如 work/project）
-        #[structopt(short = "p", long = "folders")]
+        /// Filter by folder (comma-separated, supports hierarchical paths like work/project)
+        #[arg(short = 'p', long = "folders")]
         folders: Option<String>,
 
-        /// 使用模糊搜索（更慢）
-        #[structopt(short = "f", long = "fuzzy")]
+        /// Use fuzzy search (slower)
+        #[arg(short = 'f', long = "fuzzy")]
         fuzzy: bool,
 
-        /// 限制结果数量
-        #[structopt(short = "l", long = "limit", default_value = "50")]
+        /// Limit number of results
+        #[arg(short = 'l', long = "limit", default_value = "50")]
         limit: usize,
     },
 
-    /// 刷新浏览器书签缓存与索引
-    #[structopt(name = "refresh", alias = "rf")]
+    /// Refresh browser bookmark cache and index
+    #[command(alias = "rf")]
     Refresh,
 
-    /// 显示统计信息
-    #[structopt(name = "stats", alias = "st")]
+    /// Show statistics
+    #[command(alias = "st")]
     Stats,
 
-    /// 显示 workflow 动作列表
-    #[structopt(name = "actions", alias = "a")]
+    /// Show workflow action list
+    #[command(alias = "a")]
     Actions {
-        /// 动作过滤关键词
+        /// Action filter keywords
         query: Vec<String>,
     },
 }
